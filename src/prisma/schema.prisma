@@ -1,0 +1,184 @@
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+enum Role {
+    USER
+    ADMIN
+    GroupAdmin
+}
+
+// enum PoraStatus {
+//     BOOKED
+//     FINISHED
+// }
+
+enum GroupType {
+    QURAN
+    ZIKR
+}
+
+model User {
+    userId    String  @id @default(uuid())
+    phone     String  @unique
+    email     String  @unique
+    fullname  String
+    image_url String?
+    password  String
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    role Role @default(USER)
+
+    groups                Group[]
+    bookedPoralar         BookedPoralar[]
+    notificationsSent     Notifications[] @relation("sent_notifications")
+    notificationsReceived Notifications[] @relation("received_notifications")
+    groupMemberships      GroupMembers[]
+    zikrCounts            ZikrCounts[]
+}
+
+model BookedPoralar {
+    id       String  @id @default(uuid())
+    poraId   String
+    idGroup  String
+    userId   String
+    isBooked Boolean?
+    isDone   Boolean?
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group Group @relation(fields: [idGroup], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+    user  User  @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+    pora  Poralar @relation(fields: [poraId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model FinishedPoralarCount {
+    id       String @id @default(uuid())
+    juzCount Int
+    idGroup  String
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group Group @relation(fields: [idGroup], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Group {
+    idGroup   String    @id @default(uuid())
+    name      String
+    groupType GroupType @default(QURAN)
+    adminId   String
+    guruhImg  String?
+    kimga     String?
+    isPublic  Boolean
+    hatmSoni  Int
+
+    admin User @relation(fields: [adminId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    members               GroupMembers[]
+    zikrActivities        GroupZikrActivities[]
+    finishedPoralarCounts FinishedPoralarCount[]
+    bookedPoralar         BookedPoralar[]
+    notifications         Notifications[]
+    zikr                  Zikr[]
+    zikrCounts            ZikrCounts[]
+}
+
+model GroupMembers {
+    group_id  String
+    user_id   String
+    joined_at DateTime
+
+    role Role @default(USER)
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group Group @relation(fields: [group_id], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+    user  User  @relation(fields: [user_id], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+
+    @@id([group_id, user_id])
+}
+
+model GroupZikrActivities {
+    id           String   @id @default(uuid())
+    group_id     String
+    zikr_id      String
+    zikr_count   Int
+    last_updated DateTime
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group Group @relation(fields: [group_id], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+    zikr  Zikr  @relation(fields: [zikr_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Notifications {
+    id         String   @id @default(uuid())
+    senderId   String
+    receiverId String
+    groupId    String?
+    isInvite   Boolean
+    isRead     Boolean
+    time       DateTime
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    sender   User   @relation("sent_notifications", fields: [senderId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+    receiver User   @relation("received_notifications", fields: [receiverId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+    group    Group? @relation(fields: [groupId], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Poralar {
+    id   String @id @default(uuid())
+    name String
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    BookedPoralar BookedPoralar[]
+}
+
+model Zikr {
+    id        String  @id @default(uuid())
+    name      String
+    desc      String
+    body      String
+    sound_url String?
+    goal      Int
+    groupId   String
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group      Group @relation(fields: [groupId], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+    zikrActivities GroupZikrActivities[]
+}
+
+model ZikrCounts {
+    id           String   @id @default(uuid())
+    groupId      String
+    userId       String
+    count        Int
+    sessionDate  DateTime
+    zikr_goal_id String
+
+    created_at DateTime @default(now())
+    updated_at DateTime @updatedAt
+
+    group Group @relation(fields: [groupId], references: [idGroup], onDelete: Cascade, onUpdate: NoAction)
+    user  User  @relation(fields: [userId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
+}

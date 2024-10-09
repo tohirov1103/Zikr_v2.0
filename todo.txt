@@ -1,0 +1,8 @@
+1. In PoraBooking left doing userId 
+2. enum for PoraBooking
+3. subscribe user -> done
+4. should return user's details when bookes the pora
+5. Testing all endpints -> almost done
+
+
+Finally I should deploy it to the server
