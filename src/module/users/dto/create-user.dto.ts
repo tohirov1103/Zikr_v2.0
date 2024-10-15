@@ -5,8 +5,13 @@ import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsPhoneNumber, IsString } from
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
-  @ApiProperty({example: "John Doe"})
-  fullname: string;
+  @ApiProperty({example: "John"})
+  name: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty({example: "Doe"})
+  surname: string;
 
   @IsEmail()
   @IsNotEmpty()

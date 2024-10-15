@@ -1,12 +1,17 @@
+// UpdateUserDto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
 import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
-  @ApiProperty({example: "John Doe"})
-  fullname?: string;
+  @ApiProperty({example: "John"})
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @ApiProperty({example: "Doe"})
+  surname?: string;
 
   @IsOptional()
   @IsEmail()

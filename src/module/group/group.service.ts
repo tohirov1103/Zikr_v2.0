@@ -199,7 +199,8 @@ export class GroupService {
       select: {
         user: {
           select: {
-            fullname: true,
+            name:true,
+            surname:true,
             phone: true,
           },
         },
@@ -210,7 +211,8 @@ export class GroupService {
     const response = {
       groupProfile,
       subscribers: subscribers.map(member => ({
-        fullname: member.user.fullname,
+        name: member.user.name,
+        surname:member.user.surname,
         phone: member.user.phone,
       })),
     };

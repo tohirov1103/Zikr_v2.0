@@ -27,7 +27,8 @@ model User {
     userId    String  @id @default(uuid())
     phone     String  @unique
     email     String  @unique
-    fullname  String
+    name      String
+    surname   String
     image_url String?
     password  String
 

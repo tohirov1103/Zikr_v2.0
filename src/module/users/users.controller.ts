@@ -1,3 +1,4 @@
+// UsersController.ts
 import { Controller, Get, Post, Delete, Param, Body, UseGuards, Put, Req, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
@@ -13,7 +14,7 @@ import { Request } from 'express';
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @Roles(Role.ADMIN,Role.USER)
+  @Roles(Role.ADMIN, Role.USER)
   @Get('me')
   @ApiOperation({ summary: 'Get the current user\'s profile' })
   async getMe(@Req() request: Request) {
@@ -48,14 +49,6 @@ export class UsersController {
   async getUser(@Param('id') id: string) {
     const user = await this.usersService.getUserById(id);
     return successResponse(user, 'User found successfully');
-  }
-
-  @Roles(Role.ADMIN)
-  @Get()
-  @ApiOperation({ summary: 'Get all users (admin only)' })
-  async getAllUsers() {
-    const users = await this.usersService.getAllUsers();
-    return successResponse(users, 'All users found successfully');
   }
 
   @Roles(Role.ADMIN)
