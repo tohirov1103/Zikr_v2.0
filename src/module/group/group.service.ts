@@ -236,10 +236,11 @@ export class GroupService {
     });
   }
 
-  async getUserPublicGroups(userId: string, groupType?: GroupType): Promise<Group[]> {
+  async getUserPublicGroups(userId: string, groupType?: GroupType): Promise<any[]> {
     const groupFilter = groupType ? { groupType } : {}; // Filter by groupType if provided
   
-    return this.prisma.group.findMany({
+    // Fetch the groups along with the Zikr progress from GroupZikrActivities
+    const publicGroups = await this.prisma.group.findMany({
       where: {
         isPublic: true,
         OR: [
@@ -248,23 +249,84 @@ export class GroupService {
         ],
         ...groupFilter, // Apply the group type filter if provided
       },
+      include: {
+        zikrActivities: {
+          include: {
+            zikr: {
+              select: {
+                name: true,
+                goal: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  
+    // Process groups and add Zikr progress calculation
+    return publicGroups.map(group => {
+      const zikrProgress = group.groupType === GroupType.ZIKR ? group.zikrActivities.map(activity => ({
+        zikrName: activity.zikr.name,
+        zikrCount: activity.zikr_count,
+        goal: activity.zikr.goal,
+        progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
+      })) : [];
+  
+      return {
+        groupId: group.idGroup,
+        groupName: group.name,
+        groupType: group.groupType,
+        zikrProgress,
+      };
     });
   }
+  
 
-  async getUserPrivateGroups(userId: string, groupType?: GroupType): Promise<Group[]> {
+  async getUserPrivateGroups(userId: string, groupType?: GroupType): Promise<any[]> {
     const groupFilter = groupType ? { groupType } : {}; // Filter by groupType if provided
   
-    return this.prisma.group.findMany({
+    // Fetch the groups along with the Zikr progress from GroupZikrActivities
+    const privateGroups = await this.prisma.group.findMany({
       where: {
         isPublic: false,
         OR: [
-          { adminId: userId },  // Groups where the user is the admin
-          { members: { some: { user_id: userId } } },  // Groups where the user is a member
+          { adminId: userId },  // Private groups where the user is the admin
+          { members: { some: { user_id: userId } } },  // Private groups where the user is a member
         ],
         ...groupFilter, // Apply the group type filter if provided
       },
+      include: {
+        zikrActivities: {
+          include: {
+            zikr: {
+              select: {
+                name: true,
+                goal: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  
+    // Process groups and add Zikr progress calculation
+    return privateGroups.map(group => {
+      const zikrProgress = group.groupType === GroupType.ZIKR ? group.zikrActivities.map(activity => ({
+        zikrName: activity.zikr.name,
+        zikrCount: activity.zikr_count,
+        goal: activity.zikr.goal,
+        progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
+      })) : [];
+  
+      return {
+        groupId: group.idGroup,
+        groupName: group.name,
+        groupType: group.groupType,
+        zikrProgress,
+      };
     });
   }
+  
   
   
   

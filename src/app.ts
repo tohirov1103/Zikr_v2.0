@@ -10,6 +10,7 @@ import { ZikrModule } from './module/zikr/zikr.module';
 import { ZikrCountsModule } from './module/zikr-count/zikr-count.module';
 import { BookedPoralarModule } from './module/booked-poralar/booked-poralar.module';
 import { FinishedPoralarCountModule } from './module/finished-poralar-count/finished-poralar-count.module';
+import { PoralarModule } from './module/poralar/poralar.module';
 
 @Module({
   imports: [
@@ -37,7 +38,8 @@ import { FinishedPoralarCountModule } from './module/finished-poralar-count/fini
     ZikrModule,
     ZikrCountsModule,
     BookedPoralarModule,
-    FinishedPoralarCountModule
+    FinishedPoralarCountModule,
+    PoralarModule
   ],
 })
 export class AppModule { }

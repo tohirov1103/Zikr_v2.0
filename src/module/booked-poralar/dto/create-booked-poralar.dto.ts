@@ -7,10 +7,10 @@ export class CreateBookedPoralarDto {
   @ApiProperty({ example: 'group-uuid' })
   idGroup: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  @ApiProperty({ example: 'user-uuid' })
-  userId: string;
+  // @IsUUID()
+  // @IsNotEmpty()
+  // @ApiProperty({ example: 'user-uuid' })
+  // userId: string;
 
   @IsUUID()
   @IsNotEmpty()

@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { BookedPoralarService } from './booked-poralar.service';
 import { CreateBookedPoralarDto, UpdateBookedPoralarDto } from './dto';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
+import { PoralarService } from '../poralar/poralar.service';
 import { RolesGuard, Roles, JwtPayload } from '@common';
 import { Role } from '@prisma/client';
 import { Request } from 'express';
@@ -12,7 +13,7 @@ import { Request } from 'express';
 @Controller('booked-poralar')
 export class BookedPoralarController {
   constructor(private readonly bookedPoralarService: BookedPoralarService) {}
-
+  
   @Roles(Role.USER, Role.ADMIN)
   @Post()
   @ApiOperation({ summary: 'Create a new booking' })
@@ -30,9 +31,9 @@ export class BookedPoralarController {
 
   @Roles(Role.ADMIN, Role.USER)
   @Get()
-  @ApiOperation({ summary: 'Get all bookings' })
-  async getAllBookedPoralar() {
-    return this.bookedPoralarService.getAllBookedPoralar();
+  @ApiOperation({ summary: 'Get all bookings, optionally filter by group' })
+  async getAllBookedPoralar(@Query('groupId') groupId?: string) {
+    return this.bookedPoralarService.getAllBookedPoralar(groupId);
   }
 
   @Roles(Role.USER)

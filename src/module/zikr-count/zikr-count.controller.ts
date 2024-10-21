@@ -21,12 +21,17 @@ export class ZikrCountsController {
   //   return this.zikrCountsService.createZikrCount(createZikrCountDto);
   // }
 
-  @Roles(Role.ADMIN, Role.USER) // for this one GroupAdmin can do it
-  @Get(':id')
-  @ApiOperation({ summary: 'Get ZikrCount by ID' })
-  async getZikrCountById(@Param('id') id: string) {
-    return this.zikrCountsService.getZikrCountById(id);
-  }
+  @Roles(Role.GroupAdmin, Role.USER)
+@Get('/user/:groupId')
+@ApiOperation({ summary: 'Get Zikr counts for a specific user in a group (accessible to GroupAdmin and User)' })
+async getZikrCountForUser(
+  @Req() request: Request,
+  @Param('groupId') groupId: string
+) {
+  const user = request.user as JwtPayload; // User from the token
+  return this.zikrCountsService.getZikrCountForUser(user.id, groupId);
+}
+
 
   @Roles(Role.ADMIN)
   @Get()

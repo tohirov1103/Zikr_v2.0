@@ -11,9 +11,11 @@ export class BookedPoralarService {
     return this.prisma.bookedPoralar.create({
       data: {
         ...createBookedPoralarDto,
+        userId,  // Use the userId from the token
       },
     });
   }
+
 
   async updateBookedPoralar(id: string, updateBookedPoralarDto: UpdateBookedPoralarDto, userId: string): Promise<BookedPoralar> {
     const bookedPoralar = await this.prisma.bookedPoralar.findUnique({ where: { id } });
@@ -43,8 +45,15 @@ export class BookedPoralarService {
     return bookedPoralar;
   }
 
-  async getAllBookedPoralar(): Promise<BookedPoralar[]> {
-    return this.prisma.bookedPoralar.findMany();
+  async getAllBookedPoralar(groupId?: string): Promise<BookedPoralar[]> {
+    return this.prisma.bookedPoralar.findMany({
+      where: {
+        idGroup: groupId,  // Filter by group if provided
+      },
+      include: {
+        pora: true,  // Include related Pora information
+      },
+    });
   }
 
   async deleteBookedPoralar(id: string, userId: string): Promise<void> {

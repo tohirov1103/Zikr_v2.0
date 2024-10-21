@@ -32,15 +32,21 @@ export class ZikrCountsService {
     });
   }
 
-  async getZikrCountById(id: string): Promise<ZikrCounts> {
-    const zikrCount = await this.prisma.zikrCounts.findUnique({ where: { id } });
-
-    if (!zikrCount) {
-      throw new NotFoundException('ZikrCount not found');
+  async getZikrCountForUser(userId: string, groupId: string): Promise<ZikrCounts[]> {
+    const zikrCounts = await this.prisma.zikrCounts.findMany({
+      where: {
+        userId,
+        groupId,
+      },
+    });
+  
+    if (zikrCounts.length === 0) {
+      throw new NotFoundException('No Zikr counts found for the user in this group');
     }
-
-    return zikrCount;
+  
+    return zikrCounts;
   }
+  
 
   async getAllZikrCounts(): Promise<ZikrCounts[]> { // for a specific gruop
     return this.prisma.zikrCounts.findMany();
