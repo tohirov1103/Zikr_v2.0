@@ -12,25 +12,16 @@ import { ZikrCountsService } from './zikr-count.service';
 @Controller('zikr-counts')
 export class ZikrCountsController {
   constructor(private readonly zikrCountsService: ZikrCountsService) { }
-
-  // @Roles(Role.ADMIN, Role.USER)
-  // @Post()
-  // @ApiOperation({ summary: 'Create a new ZikrCount' })
-  // async createZikrCount(@Req() request: Request, @Body() createZikrCountDto: CreateZikrCountDto) {
-  //   const user = request.user as JwtPayload;
-  //   return this.zikrCountsService.createZikrCount(createZikrCountDto);
-  // }
-
   @Roles(Role.GroupAdmin, Role.USER)
-@Get('/user/:groupId')
-@ApiOperation({ summary: 'Get Zikr counts for a specific user in a group (accessible to GroupAdmin and User)' })
-async getZikrCountForUser(
-  @Req() request: Request,
-  @Param('groupId') groupId: string
-) {
-  const user = request.user as JwtPayload; // User from the token
-  return this.zikrCountsService.getZikrCountForUser(user.id, groupId);
-}
+  @Get('/user/:groupId')
+  @ApiOperation({ summary: 'Get Zikr counts for a specific user in a group (accessible to GroupAdmin and User)' })
+  async getZikrCountForUser(
+    @Req() request: Request,
+    @Param('groupId') groupId: string
+  ) {
+    const user = request.user as JwtPayload; // User from the token
+    return this.zikrCountsService.getZikrCountForUser(user.id, groupId);
+  }
 
 
   @Roles(Role.ADMIN)

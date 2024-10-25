@@ -199,8 +199,8 @@ export class GroupService {
       select: {
         user: {
           select: {
-            name:true,
-            surname:true,
+            name: true,
+            surname: true,
             phone: true,
           },
         },
@@ -212,7 +212,7 @@ export class GroupService {
       groupProfile,
       subscribers: subscribers.map(member => ({
         name: member.user.name,
-        surname:member.user.surname,
+        surname: member.user.surname,
         phone: member.user.phone,
       })),
     };
@@ -238,7 +238,7 @@ export class GroupService {
 
   async getUserPublicGroups(userId: string, groupType?: GroupType): Promise<any[]> {
     const groupFilter = groupType ? { groupType } : {}; // Filter by groupType if provided
-  
+
     // Fetch the groups along with the Zikr progress from GroupZikrActivities
     const publicGroups = await this.prisma.group.findMany({
       where: {
@@ -262,29 +262,47 @@ export class GroupService {
         },
       },
     });
-  
+
     // Process groups and add Zikr progress calculation
     return publicGroups.map(group => {
-      const zikrProgress = group.groupType === GroupType.ZIKR ? group.zikrActivities.map(activity => ({
-        zikrName: activity.zikr.name,
-        zikrCount: activity.zikr_count,
-        goal: activity.zikr.goal,
-        progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
-      })) : [];
-  
+      let zikrProgress = [];
+
+      if (group.groupType === GroupType.ZIKR) {
+        zikrProgress = group.zikrActivities.map(activity => ({
+          zikrName: activity.zikr.name,
+          zikrCount: activity.zikr_count,
+          goal: activity.zikr.goal,
+          progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
+        }));
+      } else if (group.groupType === GroupType.QURAN) {
+        // Set default values for QURAN group type
+        zikrProgress = [
+          {
+            zikrName: 'Default Zikr for Quran',
+            zikrCount: 0,
+            goal: 0,
+            progress: 0, // No progress
+          },
+        ];
+      }
+
       return {
         groupId: group.idGroup,
         groupName: group.name,
         groupType: group.groupType,
-        zikrProgress,
+        adminId: group.adminId,        // Add adminId
+        guruhImg: group.guruhImg,      // Add group image
+        kimga: group.kimga,            // Add kimga field
+        isPublic: group.isPublic,      // Add isPublic field
+        hatmSoni: group.hatmSoni,      // Add hatmSoni field
+        zikrProgress,                  // Zikr progress for ZIKR groups, or default for QURAN
       };
     });
   }
-  
 
   async getUserPrivateGroups(userId: string, groupType?: GroupType): Promise<any[]> {
     const groupFilter = groupType ? { groupType } : {}; // Filter by groupType if provided
-  
+
     // Fetch the groups along with the Zikr progress from GroupZikrActivities
     const privateGroups = await this.prisma.group.findMany({
       where: {
@@ -308,29 +326,43 @@ export class GroupService {
         },
       },
     });
-  
+
     // Process groups and add Zikr progress calculation
     return privateGroups.map(group => {
-      const zikrProgress = group.groupType === GroupType.ZIKR ? group.zikrActivities.map(activity => ({
-        zikrName: activity.zikr.name,
-        zikrCount: activity.zikr_count,
-        goal: activity.zikr.goal,
-        progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
-      })) : [];
-  
+      let zikrProgress = [];
+
+      if (group.groupType === GroupType.ZIKR) {
+        zikrProgress = group.zikrActivities.map(activity => ({
+          zikrName: activity.zikr.name,
+          zikrCount: activity.zikr_count,
+          goal: activity.zikr.goal,
+          progress: (activity.zikr_count / activity.zikr.goal) * 100, // Calculate percentage progress
+        }));
+      } else if (group.groupType === GroupType.QURAN) {
+        // Set default values for QURAN group type
+        zikrProgress = [
+          {
+            zikrName: 'Default Zikr for Quran',
+            zikrCount: 0,
+            goal: 0,
+            progress: 0, // No progress
+          },
+        ];
+      }
+
       return {
         groupId: group.idGroup,
         groupName: group.name,
         groupType: group.groupType,
-        zikrProgress,
+        adminId: group.adminId,        // Add adminId
+        guruhImg: group.guruhImg,      // Add group image
+        kimga: group.kimga,            // Add kimga field
+        isPublic: group.isPublic,      // Add isPublic field
+        hatmSoni: group.hatmSoni,      // Add hatmSoni field
+        zikrProgress,                  // Zikr progress for ZIKR groups, or default for QURAN
       };
     });
   }
-  
-  
-  
-  
-
   private async isUserGroupAdminOrGroupAdmin(idGroup: string, userId: string): Promise<boolean> {
     const group = await this.prisma.group.findUnique({
       where: { idGroup },

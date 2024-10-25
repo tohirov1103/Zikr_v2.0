@@ -91,20 +91,20 @@ export class GroupController {
   // }
 
   @Roles(Role.USER, Role.ADMIN)
-@Get('/public/mine')
-@ApiOperation({ summary: "Get user's public groups (admin and user)" })
-async getUserPublicGroups(@Req() request: Request, @Query('groupType') groupType?: GroupType) {
-  const user = request.user as JwtPayload;
-  return this.groupService.getUserPublicGroups(user.id, groupType);
-}
+  @Get('/public/mine')
+  @ApiOperation({ summary: "Get user's public groups (admin and user)" })
+  async getUserPublicGroups(@Req() request: Request, @Query('groupType') groupType?: GroupType) {
+    const user = request.user as JwtPayload;
+    return this.groupService.getUserPublicGroups(user.id, groupType);
+  }
 
-@Roles(Role.USER, Role.ADMIN)
-@Get('/private/mine')
-@ApiOperation({ summary: "Get user's private groups (admin and user)" })
-async getUserPrivateGroups(@Req() request: Request, @Query('groupType') groupType?: GroupType) {
-  const user = request.user as JwtPayload;
-  return this.groupService.getUserPrivateGroups(user.id, groupType);
-}
+  @Roles(Role.USER, Role.ADMIN)
+  @Get('/private/mine')
+  @ApiOperation({ summary: "Get user's private groups (admin and user)" })
+  async getUserPrivateGroups(@Req() request: Request, @Query('groupType') groupType?: GroupType) {
+    const user = request.user as JwtPayload;
+    return this.groupService.getUserPrivateGroups(user.id, groupType);
+  }
 
 
 
