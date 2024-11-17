@@ -3,17 +3,13 @@ import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateNotificationDto {
   @IsUUID()
-  @ApiProperty({ example: 'uuid of the sender' })
-  senderId: string;
-
-  @IsUUID()
   @ApiProperty({ example: 'uuid of the receiver' })
   receiverId: string;
 
   @IsOptional()
   @IsUUID()
-  @ApiProperty({ example: 'uuid of the group (optional)', required: false })
-  groupId?: string;
+  @ApiProperty({ example: 'uuid of the group (optional)' })
+  groupId: string;
 
   @IsBoolean()
   @ApiProperty({ example: true })

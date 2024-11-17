@@ -18,8 +18,9 @@ export class NotificationController {
   @Roles(Role.USER, Role.ADMIN)
   @Post()
   @ApiOperation({ summary: 'Create a new notification' })
-  async createNotification(@Body() createNotificationDto: CreateNotificationDto) {
-    return this.notificationService.createNotification(createNotificationDto);
+  async createNotification(@Req() request: Request, @Body() createNotificationDto: CreateNotificationDto) {
+    const user = request.user as JwtPayload;
+    return this.notificationService.createNotification(user.id, createNotificationDto);
   }
 
   @Roles(Role.USER)

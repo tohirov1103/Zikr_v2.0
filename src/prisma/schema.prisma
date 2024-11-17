@@ -130,7 +130,7 @@ model Notifications {
     id         String   @id @default(uuid())
     senderId   String
     receiverId String
-    groupId    String?
+    groupId    String
     isInvite   Boolean
     isRead     Boolean
     time       DateTime

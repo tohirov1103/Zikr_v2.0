@@ -59,30 +59,34 @@ export class UsersService {
       }
     })
   }
+
   async findUserByPhone(phone: string) {
     if (!phone) {
       throw new BadRequestException('Phone number is required');
     }
-
-    console.log("Phone number received:", phone);
-
-    // Use Prisma to find user by phone
-    const user = await this.prismaService.user.findUnique({
-      where: {
-        phone,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
+  
+    try {
+      // Sanitize phone number if needed
+      const sanitizedPhone = phone.trim();
+  
+      const user = await this.prismaService.user.findUnique({
+        where: { phone: sanitizedPhone },
+      });
+  
+      console.log('Queried phone number:', sanitizedPhone); // Verify query
+      
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+  
+      return {
+        status: "200",
+        message: "Success",
+        data: user,
+      };
+    } catch (error) {
+      console.error('Error finding user by phone:', error);
+      throw new BadRequestException('Failed to find user by phone');
     }
-
-    console.log("User found:", user);
-
-    return {
-      status: "200",
-      message: "Success",
-      data: user,
-    };
-  }
+  }  
 }

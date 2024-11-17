@@ -18,6 +18,7 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get the current user\'s profile' })
   async getMe(@Req() request: Request) {
+    console.log('Basic test endpoint hit');
     const user = request.user as JwtPayload;
     const userProfile = await this.usersService.getUserById(user.id);
     return successResponse(userProfile, 'User profile fetched successfully');
@@ -43,7 +44,16 @@ export class UsersController {
     return successResponse(newUser, 'User created successfully');
   }
 
-  @Roles(Role.ADMIN)
+  @Roles(Role.USER, Role.ADMIN)
+  @Get('find')
+  @ApiOperation({ summary: 'Find user by phone number' })
+  async findUser(@Query('phone') phone: string) {
+    console.log('Basic test endpoint hit');
+  console.log('Received phone number:', phone); // Log to verify
+  return this.usersService.findUserByPhone(phone);
+  }
+
+  @Roles(Role.ADMIN,Role.USER)
   @Get(':id')
   @ApiOperation({ summary: 'Get a user by ID (admin only)' })
   async getUser(@Param('id') id: string) {
@@ -70,10 +80,6 @@ export class UsersController {
     return successResponse(null, 'User deleted successfully');
   }
 
-  @Roles(Role.USER, Role.ADMIN)
-  @Get('find')
-  @ApiOperation({ summary: 'Find user by phone number' })
-  async findUser(@Query('phone') phone: string) {
-    return this.usersService.findUserByPhone(phone);
-  }
+  
+
 }
