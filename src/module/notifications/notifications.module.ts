@@ -1,14 +1,20 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule, PrismaService } from '@prisma';
-import { NotificationController } from './notifications.controller';
 import { NotificationService } from './notifications.service';
-import { JwtService } from '@nestjs/jwt';
-import { RolesGuard } from '@common';
-import { NotificationsGateway } from './notifications.gateway';
+import { NotificationController } from './notifications.controller';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
+import { PrismaModule } from '@prisma';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [
+    PrismaModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '1d' },
+    }),
+  ],
   controllers: [NotificationController],
-  providers: [NotificationService, NotificationsGateway, JwtService, RolesGuard],
+  providers: [NotificationService, WebsocketGateway],
+  exports: [NotificationService]
 })
 export class NotificationModule {}

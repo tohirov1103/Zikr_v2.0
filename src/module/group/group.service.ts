@@ -2,10 +2,70 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException 
 import { PrismaService } from '@prisma';
 import { Group, GroupType, Role } from '@prisma/client';
 import { CreateGroupDto, UpdateGroupDto } from './dto';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
 
 @Injectable()
 export class GroupService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly websocketGateway: WebsocketGateway
+  ) {}
+
+  // async createGroup(adminId: string, createGroupDto: CreateGroupDto): Promise<Group> {
+  //   // Step 1: Create the group
+  //   const group = await this.prisma.group.create({
+  //     data: {
+  //       ...createGroupDto,
+  //       admin: { connect: { userId: adminId } }, // Connect the existing User by userId
+  //     },
+  //   });
+
+  //   // Step 2: Automatically add the admin as GroupAdmin in GroupMembers
+  //   await this.prisma.groupMembers.create({
+  //     data: {
+  //       group_id: group.idGroup,
+  //       user_id: adminId,
+  //       role: Role.GroupAdmin,  // Set the role as GroupAdmin
+  //       joined_at: new Date(),
+  //     },
+  //   });
+
+  //   // Step 3: Initialize the finishedPoralarCount for the new group
+  //   await this.prisma.finishedPoralarCount.create({
+  //     data: {
+  //       idGroup: group.idGroup,
+  //       juzCount: 0,  // Set the initial count to 0
+  //     },
+  //   });
+
+  //   return group;
+  // }
+
+  // Fetch user's public groups
+  // async getUserPublicGroups(userId: string): Promise<Group[]> {
+  //   return this.prisma.group.findMany({
+  //     where: {
+  //       isPublic: true,
+  //       OR: [
+  //         { adminId: userId },  // Groups where the user is the admin
+  //         { members: { some: { user_id: userId } } },  // Groups where the user is a member
+  //       ],
+  //     },
+  //   });
+  // }
+
+  // Fetch user's private groups
+  // async getUserPrivateGroups(userId: string): Promise<Group[]> {
+  //   return this.prisma.group.findMany({
+  //     where: {
+  //       isPublic: false,
+  //       OR: [
+  //         { adminId: userId },  // Private groups where the user is the admin
+  //         { members: { some: { user_id: userId } } },  // Private groups where the user is a member
+  //       ],
+  //     },
+  //   });
+  // }
 
   async createGroup(adminId: string, createGroupDto: CreateGroupDto): Promise<Group> {
     // Step 1: Create the group
@@ -34,34 +94,25 @@ export class GroupService {
       },
     });
 
+    // Get admin info for WebSocket notification
+    const admin = await this.prisma.user.findUnique({
+      where: { userId: adminId },
+      select: { name: true, surname: true }
+    });
+
+    // Broadcast new group creation
+    this.websocketGateway.server.emit('group_created', {
+      groupId: group.idGroup,
+      groupName: group.name,
+      groupType: group.groupType,
+      isPublic: group.isPublic,
+      adminId,
+      adminName: `${admin?.name} ${admin?.surname}`,
+      timestamp: new Date()
+    });
+
     return group;
   }
-
-  // Fetch user's public groups
-  // async getUserPublicGroups(userId: string): Promise<Group[]> {
-  //   return this.prisma.group.findMany({
-  //     where: {
-  //       isPublic: true,
-  //       OR: [
-  //         { adminId: userId },  // Groups where the user is the admin
-  //         { members: { some: { user_id: userId } } },  // Groups where the user is a member
-  //       ],
-  //     },
-  //   });
-  // }
-
-  // Fetch user's private groups
-  // async getUserPrivateGroups(userId: string): Promise<Group[]> {
-  //   return this.prisma.group.findMany({
-  //     where: {
-  //       isPublic: false,
-  //       OR: [
-  //         { adminId: userId },  // Private groups where the user is the admin
-  //         { members: { some: { user_id: userId } } },  // Private groups where the user is a member
-  //       ],
-  //     },
-  //   });
-  // }
 
   async updateGroup(idGroup: string, updateGroupDto: UpdateGroupDto, userId: string): Promise<Group> {
     const group = await this.prisma.group.findUnique({
@@ -83,9 +134,56 @@ export class GroupService {
     });
   }
 
+  // async deleteGroup(idGroup: string, userId: string): Promise<void> {
+  //   const group = await this.prisma.group.findUnique({
+  //     where: { idGroup },
+  //   });
+
+  //   if (!group) {
+  //     throw new NotFoundException('Group not found');
+  //   }
+
+  //   // Check if the user is the GroupAdmin or a GroupMember
+  //   const groupMember = await this.prisma.groupMembers.findUnique({
+  //     where: {
+  //       group_id_user_id: {
+  //         group_id: idGroup,
+  //         user_id: userId,
+  //       },
+  //     },
+  //     select: { role: true },
+  //   });
+
+  //   if (!groupMember) {
+  //     throw new ForbiddenException('You are not a member of this group');
+  //   }
+
+  //   // If the user is the GroupAdmin (actual admin), delete the entire group
+  //   if (groupMember.role === Role.GroupAdmin) {
+  //     await this.prisma.group.delete({
+  //       where: { idGroup },
+  //     });
+  //   } else {
+  //     // If the user is a GroupMember, remove them from the group
+  //     await this.prisma.groupMembers.delete({
+  //       where: {
+  //         group_id_user_id: {
+  //           group_id: idGroup,
+  //           user_id: userId,
+  //         },
+  //       },
+  //     });
+  //   }
+  // }
+
   async deleteGroup(idGroup: string, userId: string): Promise<void> {
     const group = await this.prisma.group.findUnique({
       where: { idGroup },
+      select: {
+        idGroup: true,
+        name: true,
+        adminId: true
+      }
     });
 
     if (!group) {
@@ -112,6 +210,14 @@ export class GroupService {
       await this.prisma.group.delete({
         where: { idGroup },
       });
+
+      // Notify all group members about deletion
+      this.websocketGateway.server.to(`group:${idGroup}`).emit('group_deleted', {
+        groupId: idGroup,
+        groupName: group.name,
+        adminId: group.adminId,
+        timestamp: new Date()
+      });
     } else {
       // If the user is a GroupMember, remove them from the group
       await this.prisma.groupMembers.delete({
@@ -121,6 +227,20 @@ export class GroupService {
             user_id: userId,
           },
         },
+      });
+
+      // Get user info for WebSocket notification
+      const user = await this.prisma.user.findUnique({
+        where: { userId },
+        select: { name: true, surname: true }
+      });
+
+      // Notify remaining group members that user left
+      this.websocketGateway.server.to(`group:${idGroup}`).emit('member_left', {
+        groupId: idGroup,
+        userId,
+        userName: `${user?.name} ${user?.surname}`,
+        timestamp: new Date()
       });
     }
   }
@@ -142,6 +262,36 @@ export class GroupService {
   }
 
   // Subscribe a user to a group
+  // async subscribeUser(userId: string, groupId: string): Promise<{ message: string }> {
+  //   // Step 1: Check if the user is already subscribed
+  //   const existingSubscription = await this.prisma.groupMembers.findUnique({
+  //     where: {
+  //       group_id_user_id: {
+  //         group_id: groupId,
+  //         user_id: userId,
+  //       },
+  //     },
+  //   });
+
+  //   if (existingSubscription) {
+  //     throw new BadRequestException('User already subscribed to the group');
+  //   }
+
+  //   // Step 2: Subscribe the user to the group
+  //   await this.prisma.groupMembers.create({
+  //     data: {
+  //       group_id: groupId,
+  //       user_id: userId,
+  //       role: Role.USER, // Default role for members
+  //       joined_at: new Date(),
+  //     },
+  //   });
+
+  //   return {
+  //     message: 'User subscribed to the group',
+  //   };
+  // }
+
   async subscribeUser(userId: string, groupId: string): Promise<{ message: string }> {
     // Step 1: Check if the user is already subscribed
     const existingSubscription = await this.prisma.groupMembers.findUnique({
@@ -157,6 +307,21 @@ export class GroupService {
       throw new BadRequestException('User already subscribed to the group');
     }
 
+    // Get group info
+    const group = await this.prisma.group.findUnique({
+      where: { idGroup: groupId },
+      select: { name: true, isPublic: true }
+    });
+
+    if (!group) {
+      throw new NotFoundException('Group not found');
+    }
+
+    // Check if the group is private - if so, reject direct subscription
+    if (!group.isPublic) {
+      throw new ForbiddenException('Cannot directly subscribe to a private group, invitation is required');
+    }
+
     // Step 2: Subscribe the user to the group
     await this.prisma.groupMembers.create({
       data: {
@@ -165,6 +330,21 @@ export class GroupService {
         role: Role.USER, // Default role for members
         joined_at: new Date(),
       },
+    });
+
+    // Get user info for WebSocket notification
+    const user = await this.prisma.user.findUnique({
+      where: { userId },
+      select: { name: true, surname: true }
+    });
+
+    // Notify all group members
+    this.websocketGateway.server.to(`group:${groupId}`).emit('member_joined', {
+      groupId,
+      groupName: group.name,
+      userId,
+      userName: `${user?.name} ${user?.surname}`,
+      timestamp: new Date()
     });
 
     return {

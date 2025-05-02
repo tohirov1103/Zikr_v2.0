@@ -3,9 +3,10 @@ import { GroupService } from './group.service';
 import { GroupController } from './group.controller';
 import { PrismaModule } from '@prisma';
 import { JwtService } from '@nestjs/jwt';
+import { WebsocketModule } from '../websocket/websocket.module';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule,WebsocketModule],
   controllers: [GroupController],
   providers: [GroupService,JwtService],
 })

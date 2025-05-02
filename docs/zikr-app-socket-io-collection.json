@@ -1,0 +1,257 @@
+{
+  "info": {
+    "name": "Zikr App Socket.IO",
+    "description": "Collection for testing Zikr App Socket.IO functionality",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Connect to Socket.IO",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Connect to the Socket.IO server"
+      },
+      "response": []
+    },
+    {
+      "name": "2. Join Group",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"joinGroup\",\n  \"data\": {\n    \"groupId\": \"{{group_id}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Join a group using Socket.IO"
+      },
+      "response": []
+    },
+    {
+      "name": "3. Send Notification",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"sendNotification\",\n  \"data\": {\n    \"userId\": \"{{target_user_id}}\",\n    \"type\": \"GROUP_INVITATION\",\n    \"title\": \"Test Notification\",\n    \"message\": \"This is a test notification\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Send a notification using Socket.IO"
+      },
+      "response": []
+    },
+    {
+      "name": "4. Book Pora",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"bookPora\",\n  \"data\": {\n    \"poraId\": \"{{pora_id}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Book a pora using Socket.IO"
+      },
+      "response": []
+    },
+    {
+      "name": "5. Update Zikr Count",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"updateZikrCount\",\n  \"data\": {\n    \"groupId\": \"{{group_id}}\",\n    \"count\": 100\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Update zikr count using Socket.IO"
+      },
+      "response": []
+    },
+    {
+      "name": "6. Send Invitation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event\": \"sendInvitation\",\n  \"data\": {\n    \"groupId\": \"{{group_id}}\",\n    \"userId\": \"{{target_user_id}}\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Send an invitation using Socket.IO"
+      },
+      "response": []
+    },
+    {
+      "name": "7. Listen for Events",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Listen for various events"
+      },
+      "response": []
+    },
+    {
+      "name": "8. Disconnect",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{jwt_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:7373/zikr-app",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "7373",
+          "path": ["zikr-app"]
+        },
+        "description": "Disconnect from the Socket.IO server"
+      },
+      "response": []
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:7373",
+      "type": "string"
+    }
+  ]
+} 

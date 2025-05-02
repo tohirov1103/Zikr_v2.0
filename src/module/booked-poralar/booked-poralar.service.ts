@@ -2,23 +2,54 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '@prisma';
 import { BookedPoralar } from '@prisma/client';
 import { CreateBookedPoralarDto, UpdateBookedPoralarDto } from './dto';
+import { WebsocketGateway } from '../websocket/websocket.gateway';
 
 @Injectable()
 export class BookedPoralarService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly websocketGateway: WebsocketGateway
+  ) {}
 
   async createBookedPoralar(createBookedPoralarDto: CreateBookedPoralarDto, userId: string): Promise<BookedPoralar> {
-    return this.prisma.bookedPoralar.create({
+    const booking = await this.prisma.bookedPoralar.create({
       data: {
         ...createBookedPoralarDto,
-        userId,  // Use the userId from the token
+        userId,
       },
+      include: {
+        pora: true,
+        user: {
+          select: {
+            name: true,
+            surname: true
+          }
+        }
+      }
     });
+
+    // Notify group members via WebSocket
+    this.websocketGateway.server.to(`group:${booking.idGroup}`).emit('pora_booked', {
+      bookingId: booking.id,
+      poraId: booking.poraId,
+      poraName: booking.pora.name,
+      groupId: booking.idGroup,
+      userId: booking.userId,
+      userName: `${booking.user.name} ${booking.user.surname}`,
+      timestamp: new Date()
+    });
+
+    return booking;
   }
 
 
   async updateBookedPoralar(id: string, updateBookedPoralarDto: UpdateBookedPoralarDto, userId: string): Promise<BookedPoralar> {
-    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({ where: { id } });
+    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({ 
+      where: { id },
+      include: {
+        pora: true
+      }
+    });
 
     if (!bookedPoralar) {
       throw new NotFoundException('BookedPoralar not found');
@@ -29,10 +60,43 @@ export class BookedPoralarService {
       throw new ForbiddenException('You are not authorized to update this booking');
     }
 
-    return this.prisma.bookedPoralar.update({
+    const updatedBooking = await this.prisma.bookedPoralar.update({
       where: { id },
       data: updateBookedPoralarDto,
     });
+
+    // If pora is marked as done, notify group members
+    if (updateBookedPoralarDto.isDone === true && bookedPoralar.isDone === false) {
+      // Get finishedPoralarCount
+      const finishedCount = await this.prisma.finishedPoralarCount.findFirst({
+        where: { idGroup: bookedPoralar.idGroup }
+      });
+
+      const user = await this.prisma.user.findUnique({
+        where: { userId },
+        select: { name: true, surname: true }
+      });
+
+      const group = await this.prisma.group.findUnique({
+        where: { idGroup: bookedPoralar.idGroup },
+        select: { name: true }
+      });
+
+      this.websocketGateway.server.to(`group:${bookedPoralar.idGroup}`).emit('pora_completed', {
+        bookingId: bookedPoralar.id,
+        poraId: bookedPoralar.poraId,
+        poraName: bookedPoralar.pora.name,
+        groupId: bookedPoralar.idGroup,
+        groupName: group?.name,
+        userId,
+        userName: `${user?.name} ${user?.surname}`,
+        totalFinished: finishedCount?.juzCount || 0,
+        hatmCompleted: false,
+        timestamp: new Date()
+      });
+    }
+
+    return updatedBooking;
   }
 
   async getBookedPoralarById(id: string): Promise<BookedPoralar> {

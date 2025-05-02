@@ -4,7 +4,7 @@ import * as basicAuth from 'express-basic-auth';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpExceptionFilter } from './common/filters';
+// import { HttpExceptionFilter } from './common/filters';
 import { LoggingInterceptor } from './common/interceptors';
 
 async function bootstrap() {
@@ -39,7 +39,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, configSwagger);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get<number>('app.port');
+  // const port = configService.get<number>('app.port');
+  const port = 7373;
   await app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
     console.log(`Swagger UI: http://localhost:${port}/api/docs`);

@@ -11,6 +11,7 @@ import { ZikrCountsModule } from './module/zikr-count/zikr-count.module';
 import { BookedPoralarModule } from './module/booked-poralar/booked-poralar.module';
 import { FinishedPoralarCountModule } from './module/finished-poralar-count/finished-poralar-count.module';
 import { PoralarModule } from './module/poralar/poralar.module';
+import { WebsocketModule } from './module/websocket/websocket.module';
 
 @Module({
   imports: [
@@ -39,7 +40,10 @@ import { PoralarModule } from './module/poralar/poralar.module';
     ZikrCountsModule,
     BookedPoralarModule,
     FinishedPoralarCountModule,
-    PoralarModule
+    PoralarModule,
+    WebsocketModule
   ],
+  controllers: [],
+  providers: [],
 })
 export class AppModule { }

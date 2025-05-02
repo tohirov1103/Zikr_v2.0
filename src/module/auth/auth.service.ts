@@ -4,12 +4,14 @@ import { UsersService } from '../users/users.service';
 import { PasswordHasher } from '@common';
 import { LoginDto, RegisterDto } from './dto';
 import { Role } from '@prisma/client';
+import { WebsocketGateway } from '../websocket/websocket.gateway'; // Import WebSocket gateway
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly websocketGateway: WebsocketGateway // Inject WebSocket
   ) {}
 
   private async validateUser(email: string, password: string): Promise<any> {
@@ -38,7 +40,10 @@ export class AuthService {
       password: hashedPassword
     });
 
-    const token = this.generateToken({id: newUser.userId, role: newUser.role});
+    const token = this.generateToken({ id: newUser.userId, role: newUser.role });
+
+    // 🔥 Notify admins about new user registration via WebSocket
+    this.websocketGateway.server.emit('newUserRegistered', { user: newUser });
 
     return { message: 'Registration successful', user: newUser, token };
   }
@@ -53,7 +58,11 @@ export class AuthService {
       throw new UnauthorizedException('Unauthorized role access');
     }
 
-    const token = this.generateToken({id: user.userId, role: user.role});
+    const token = this.generateToken({ id: user.userId, role: user.role });
+
+    // 🔥 Notify that a user has logged in
+    this.websocketGateway.server.emit('userLoggedIn', { user });
+
     return { message: 'Login successful', token };
   }
 

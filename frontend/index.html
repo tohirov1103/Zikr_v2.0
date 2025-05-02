@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zikr App WebSocket Test</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #events { height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .event { margin-bottom: 5px; }
+        .input-group { margin-bottom: 10px; }
+        button { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Zikr App WebSocket Test Client</h1>
+    
+    <div class="input-group">
+        <label>JWT Token:</label>
+        <input type="text" id="token" style="width: 300px;" placeholder="Enter your JWT token">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Group ID:</label>
+        <input type="text" id="groupId" placeholder="Enter group ID">
+        <button onclick="joinGroup()">Join Group</button>
+        <button onclick="leaveGroup()">Leave Group</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Book Pora:</label>
+        <input type="text" id="poraId" placeholder="Enter pora ID">
+        <button onclick="bookPora()">Book Pora</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Complete Pora:</label>
+        <input type="text" id="bookingId" placeholder="Enter booking ID">
+        <button onclick="completePora()">Complete Pora</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Update Zikr Count:</label>
+        <input type="text" id="zikrId" placeholder="Enter zikr ID">
+        <input type="number" id="count" placeholder="Count" value="1">
+        <button onclick="updateZikrCount()">Update Count</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Send Invitation:</label>
+        <input type="text" id="receiverId" placeholder="Enter receiver user ID">
+        <button onclick="sendInvitation()">Send Invitation</button>
+    </div>
+    
+    <div class="input-group">
+        <label>Respond to Invitation:</label>
+        <input type="text" id="notificationId" placeholder="Enter notification ID">
+        <button onclick="acceptInvitation()">Accept</button>
+        <button onclick="rejectInvitation()">Reject</button>
+    </div>
+    
+    <div class="input-group">
+        <button onclick="getNotifications()">Get Notifications</button>
+    </div>
+    
+    <h3>Events:</h3>
+    <div id="events"></div>
+    
+    <script>
+        let socket;
+        
+        function addEvent(text) {
+            const eventsDiv = document.getElementById('events');
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            eventDiv.textContent = `${new Date().toLocaleTimeString()} - ${text}`;
+            eventsDiv.appendChild(eventDiv);
+            eventsDiv.scrollTop = eventsDiv.scrollHeight;
+        }
+        
+        function connect() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                alert('Please enter a JWT token');
+                return;
+            }
+            
+            // Disconnect existing socket if any
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            addEvent('Attempting to connect...');
+            
+            socket = io('http://localhost:7373/zikr-app', {
+                auth: { token },
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            });
+            
+            // Connection events
+            socket.on('connect', () => {
+                addEvent(`Connected with socket ID: ${socket.id}`);
+            });
+            
+            socket.on('connect_error', (error) => {
+                addEvent(`Connection error: ${error.message}`);
+                console.error('Connection error:', error);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                addEvent(`Disconnected from server. Reason: ${reason}`);
+            });
+            
+            socket.on('error', (error) => {
+                addEvent(`Error: ${JSON.stringify(error)}`);
+                console.error('Socket error:', error);
+            });
+            
+            // Connection status
+            socket.on('connection_status', (data) => {
+                addEvent(`Connection status: ${JSON.stringify(data)}`);
+            });
+            
+            // Group events
+            socket.on('joined_group', (data) => {
+                addEvent(`Joined group: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('left_group', (data) => {
+                addEvent(`Left group: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('user_online', (data) => {
+                addEvent(`User online: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('user_offline', (data) => {
+                addEvent(`User offline: ${JSON.stringify(data)}`);
+            });
+            
+            // Pora events
+            socket.on('pora_booked', (data) => {
+                addEvent(`Pora booked: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('booking_confirmed', (data) => {
+                addEvent(`Booking confirmed: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('pora_completed', (data) => {
+                addEvent(`Pora completed: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('completion_confirmed', (data) => {
+                addEvent(`Completion confirmed: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('hatm_completed', (data) => {
+                addEvent(`Hatm completed: ${JSON.stringify(data)}`);
+            });
+            
+            // Zikr events
+            socket.on('zikr_count_updated', (data) => {
+                addEvent(`Zikr count updated: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('zikr_update_confirmed', (data) => {
+                addEvent(`Zikr update confirmed: ${JSON.stringify(data)}`);
+            });
+            
+            // Notification events
+            socket.on('new_notification', (data) => {
+                addEvent(`New notification: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('new_invitation', (data) => {
+                addEvent(`New invitation: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('notifications', (data) => {
+                addEvent(`Received notifications: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('invitation_sent', (data) => {
+                addEvent(`Invitation sent: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('invitation_accepted', (data) => {
+                addEvent(`Invitation accepted: ${JSON.stringify(data)}`);
+            });
+            
+            socket.on('invitation_rejected', (data) => {
+                addEvent(`Invitation rejected: ${JSON.stringify(data)}`);
+            });
+            
+            // Ping/Pong for connection testing
+            socket.on('pong', (data) => {
+                addEvent(`Received pong: ${JSON.stringify(data)}`);
+            });
+            
+            // Start ping interval
+            setInterval(() => {
+                if (socket && socket.connected) {
+                    socket.emit('ping');
+                    addEvent('Sent ping');
+                }
+            }, 25000);
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+        
+        function joinGroup() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const groupId = document.getElementById('groupId').value;
+            if (!groupId) {
+                alert('Please enter a group ID');
+                return;
+            }
+            
+            socket.emit('join_group', { groupId });
+            addEvent(`Sent join_group request for group ${groupId}`);
+        }
+        
+        function leaveGroup() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const groupId = document.getElementById('groupId').value;
+            if (!groupId) {
+                alert('Please enter a group ID');
+                return;
+            }
+            
+            socket.emit('leave_group', { groupId });
+            addEvent(`Sent leave_group request for group ${groupId}`);
+        }
+        
+        function bookPora() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const groupId = document.getElementById('groupId').value;
+            const poraId = document.getElementById('poraId').value;
+            
+            if (!groupId || !poraId) {
+                alert('Please enter group ID and pora ID');
+                return;
+            }
+            
+            socket.emit('book_pora', { groupId, poraId });
+            addEvent(`Sent book_pora request for pora ${poraId} in group ${groupId}`);
+        }
+        
+        function completePora() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const bookingId = document.getElementById('bookingId').value;
+            
+            if (!bookingId) {
+                alert('Please enter booking ID');
+                return;
+            }
+            
+            socket.emit('complete_pora', { bookingId });
+            addEvent(`Sent complete_pora request for booking ${bookingId}`);
+        }
+        
+        function updateZikrCount() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const groupId = document.getElementById('groupId').value;
+            const zikrId = document.getElementById('zikrId').value;
+            const count = parseInt(document.getElementById('count').value);
+            
+            if (!groupId || !zikrId || isNaN(count)) {
+                alert('Please enter group ID, zikr ID, and count');
+                return;
+            }
+            
+            socket.emit('update_zikr_count', { groupId, zikrId, count });
+            addEvent(`Sent update_zikr_count request with count ${count} for zikr ${zikrId} in group ${groupId}`);
+        }
+        
+        function sendInvitation() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const groupId = document.getElementById('groupId').value;
+            const receiverId = document.getElementById('receiverId').value;
+            
+            if (!groupId || !receiverId) {
+                alert('Please enter group ID and receiver ID');
+                return;
+            }
+            
+            socket.emit('send_invitation', { groupId, receiverId });
+            addEvent(`Sent send_invitation request to user ${receiverId} for group ${groupId}`);
+        }
+        
+        function acceptInvitation() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const notificationId = document.getElementById('notificationId').value;
+            
+            if (!notificationId) {
+                alert('Please enter notification ID');
+                return;
+            }
+            
+            socket.emit('respond_to_invitation', { notificationId, accept: true });
+            addEvent(`Sent accept invitation request for notification ${notificationId}`);
+        }
+        
+        function rejectInvitation() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            const notificationId = document.getElementById('notificationId').value;
+            
+            if (!notificationId) {
+                alert('Please enter notification ID');
+                return;
+            }
+            
+            socket.emit('respond_to_invitation', { notificationId, accept: false });
+            addEvent(`Sent reject invitation request for notification ${notificationId}`);
+        }
+        
+        function getNotifications() {
+            if (!socket) {
+                alert('Please connect first');
+                return;
+            }
+            
+            socket.emit('get_notifications');
+            addEvent('Sent get_notifications request');
+        }
+    </script>
+</body>
+</html>

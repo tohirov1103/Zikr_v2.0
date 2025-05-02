@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuard
 import { BookedPoralarService } from './booked-poralar.service';
 import { CreateBookedPoralarDto, UpdateBookedPoralarDto } from './dto';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
-import { PoralarService } from '../poralar/poralar.service';
+// import { PoralarService } from '../poralar/poralar.service';
 import { RolesGuard, Roles, JwtPayload } from '@common';
 import { Role } from '@prisma/client';
 import { Request } from 'express';
