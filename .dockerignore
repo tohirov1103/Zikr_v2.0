@@ -84,3 +84,20 @@ __tests__
 frontend
 scripts
 todo.txt
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+
+# PM2
+ecosystem.config.js
+
+# Package locks (will be regenerated)
+package-lock.json
+yarn.lock
+
+# Deployment
+DEPLOYMENT.md
+QUICK-START.md
+doneTasks.txt
