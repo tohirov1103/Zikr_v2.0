@@ -12,6 +12,7 @@ import { BookedPoralarModule } from './module/booked-poralar/booked-poralar.modu
 import { FinishedPoralarCountModule } from './module/finished-poralar-count/finished-poralar-count.module';
 import { PoralarModule } from './module/poralar/poralar.module';
 import { WebsocketModule } from './module/websocket/websocket.module';
+import { HealthModule } from './module/health/health.module';
 
 @Module({
   imports: [
@@ -41,7 +42,8 @@ import { WebsocketModule } from './module/websocket/websocket.module';
     BookedPoralarModule,
     FinishedPoralarCountModule,
     PoralarModule,
-    WebsocketModule
+    WebsocketModule,
+    HealthModule
   ],
   controllers: [],
   providers: [],

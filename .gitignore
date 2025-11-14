@@ -54,3 +54,25 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Deployment artifacts
+deploy.tar.gz
+deploy-package/
+
+# PM2 logs
+.pm2/
+
+# Backup files
+*.backup
+*.bak
+
+# Database backups
+/backups
+*.sql
+*.sql.gz
+
+# SSH keys (just in case)
+*.pem
+*.key
+id_rsa*
+id_ed25519*

@@ -1,0 +1,159 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run tests (optional)
+        run: npm test --if-present
+        continue-on-error: true
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy-package
+          cp -r dist deploy-package/
+          cp -r node_modules deploy-package/
+          cp -r prisma deploy-package/
+          cp package*.json deploy-package/
+          tar -czf deploy.tar.gz -C deploy-package .
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Transfer deployment package
+        run: |
+          scp -P ${{ secrets.SERVER_PORT }} deploy.tar.gz ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/
+
+      - name: Deploy on server
+        run: |
+          ssh -p ${{ secrets.SERVER_PORT }} ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            set -e
+
+            # Set variables
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            BACKUP_PATH="/var/backups/zikr-api"
+
+            echo "🚀 Starting deployment..."
+
+            # Create directories
+            mkdir -p $DEPLOY_PATH
+            mkdir -p $BACKUP_PATH
+
+            # Backup database
+            echo "💾 Backing up database..."
+            bash $DEPLOY_PATH/scripts/backup-db.sh || echo "⚠️  Backup script not found, skipping..."
+
+            # Backup current deployment
+            if [ -d "$DEPLOY_PATH/dist" ]; then
+              echo "📦 Backing up current deployment..."
+              tar -czf $BACKUP_PATH/backup_$TIMESTAMP.tar.gz -C $DEPLOY_PATH . 2>/dev/null || true
+
+              # Keep only last 5 backups
+              cd $BACKUP_PATH
+              ls -t backup_*.tar.gz | tail -n +6 | xargs -r rm
+            fi
+
+            # Extract new deployment
+            echo "📥 Extracting new deployment..."
+            cd $DEPLOY_PATH
+            tar -xzf /tmp/deploy.tar.gz
+            rm /tmp/deploy.tar.gz
+
+            # Run database migrations
+            echo "🗄️  Running database migrations..."
+            npx prisma migrate deploy || echo "⚠️  Migration failed or not needed"
+
+            # Restart application with PM2
+            echo "🔄 Restarting application..."
+            if pm2 describe zikr-api > /dev/null 2>&1; then
+              pm2 reload zikr-api --update-env
+            else
+              pm2 start ecosystem.config.js
+            fi
+
+            pm2 save
+
+            # Wait for app to start
+            echo "⏳ Waiting for application to start..."
+            sleep 5
+
+            # Health check
+            echo "🏥 Running health check..."
+            HEALTH_URL="http://localhost:${{ secrets.APP_PORT || '1111' }}/api/health"
+
+            for i in {1..10}; do
+              if curl -f $HEALTH_URL > /dev/null 2>&1; then
+                echo "✅ Health check passed!"
+
+                # Run performance monitoring
+                bash $DEPLOY_PATH/scripts/monitor.sh || echo "⚠️  Monitoring script not found"
+
+                echo "🎉 Deployment completed successfully!"
+                exit 0
+              fi
+              echo "Attempt $i/10: Waiting for app..."
+              sleep 3
+            done
+
+            echo "❌ Health check failed! Rolling back..."
+
+            # Rollback
+            if [ -f "$BACKUP_PATH/backup_$TIMESTAMP.tar.gz" ]; then
+              cd $DEPLOY_PATH
+              rm -rf dist node_modules prisma package*.json
+              tar -xzf $BACKUP_PATH/backup_$TIMESTAMP.tar.gz
+              pm2 reload zikr-api
+              echo "⚠️  Rolled back to previous version"
+              exit 1
+            else
+              echo "❌ Rollback failed: no backup found"
+              exit 1
+            fi
+          ENDSSH
+
+      - name: Deployment status notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "🌐 App is live at: https://${{ secrets.SERVER_HOST }}"
+          else
+            echo "❌ Deployment failed!"
+          fi
+
+      - name: Clean up
+        if: always()
+        run: rm -f deploy.tar.gz
