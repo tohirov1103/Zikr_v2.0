@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: zikr-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-zikr}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zikr_password}
+      POSTGRES_DB: ${DB_NAME:-zikr_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - zikr-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-zikr}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NestJS Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zikr-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${DB_USER:-zikr}:${DB_PASSWORD:-zikr_password}@postgres:5432/${DB_NAME:-zikr_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-7d}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_ACCESS_KEY: ${R2_ACCESS_KEY}
+      R2_SECRET_KEY: ${R2_SECRET_KEY}
+      R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+      SWAGGER_USERNAME: ${SWAGGER_USERNAME:-admin}
+      SWAGGER_PASSWORD: ${SWAGGER_PASSWORD:-admin123}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER}
+      MAIL_PASS: ${MAIL_PASS}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      SOCKET_ADMIN_USER: ${SOCKET_ADMIN_USER:-admin}
+      SOCKET_ADMIN_PASS: ${SOCKET_ADMIN_PASS:-changeit}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - zikr-network
+    volumes:
+      - ./prisma:/app/prisma
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+
+networks:
+  zikr-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
