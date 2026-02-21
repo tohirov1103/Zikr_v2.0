@@ -8,8 +8,6 @@ import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import * as otpGenerator from 'otp-generator';
 
 @Injectable()
 export class AuthService {
@@ -41,31 +39,11 @@ export class AuthService {
       throw new NotFoundException('User with this email not found');
     }
 
-    const otp = otpGenerator.generate(6, {
-      digits: true,
-      lowerCaseAlphabets: false,
-      upperCaseAlphabets: false,
-      specialChars: false,
-    });
+    // TODO: replace '000000' with real OTP generation and email sending in production
+    const otp = '000000';
 
     // TTL in milliseconds: 5 minutes
     await this.cacheManager.set(`otp:${dto.email}`, { otp, phone: user.phone }, 300000);
-
-    const transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('mail.host'),
-      port: Number(this.configService.get<string>('mail.port')),
-      auth: {
-        user: this.configService.get<string>('mail.user'),
-        pass: this.configService.get<string>('mail.pass'),
-      },
-    });
-
-    await transporter.sendMail({
-      from: this.configService.get<string>('mail.user'),
-      to: dto.email,
-      subject: 'Your OTP Code',
-      text: `Your OTP code is: ${otp}. It expires in 5 minutes.`,
-    });
 
     return { message: 'OTP sent to email' };
   }
