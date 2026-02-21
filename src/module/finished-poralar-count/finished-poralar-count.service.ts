@@ -11,27 +11,54 @@ export class FinishedPoralarCountService {
     private readonly websocketGateway: WebsocketGateway
   ) {}
 
+  /**
+   * Complete a hatm for a group:
+   * 1. Verifies user is a member
+   * 2. Increments juzCount (completedHatmCount) by 1 on the existing record
+   * 3. Resets all BookedPoralar for the group (all poralar become Available)
+   * 4. Emits WebSocket event
+   */
   async createFinishedPoralarCount(
-    createFinishedPoralarCountDto: CreateFinishedPoralarCountDto,
+    dto: CreateFinishedPoralarCountDto,
     userId: string,
   ): Promise<FinishedPoralarCount> {
-    // Check if the user is part of the group
     const isMember = await this.prisma.groupMembers.findFirst({
-      where: {
-        group_id: createFinishedPoralarCountDto.idGroup,
-        user_id: userId,
-      },
+      where: { group_id: dto.idGroup, user_id: userId },
     });
 
     if (!isMember) {
       throw new ForbiddenException('You are not a member of this group');
     }
 
-    return this.prisma.finishedPoralarCount.create({
-      data: {
-        ...createFinishedPoralarCountDto,
-      },
+    const existing = await this.prisma.finishedPoralarCount.findFirst({
+      where: { idGroup: dto.idGroup },
     });
+
+    if (!existing) {
+      throw new NotFoundException('FinishedPoralarCount record not found for this group');
+    }
+
+    const updated = await this.prisma.finishedPoralarCount.update({
+      where: { id: existing.id },
+      data: { juzCount: { increment: 1 } },
+    });
+
+    // Reset all BookedPoralar for this group
+    await this.prisma.bookedPoralar.deleteMany({ where: { idGroup: dto.idGroup } });
+
+    const group = await this.prisma.group.findUnique({
+      where: { idGroup: dto.idGroup },
+      select: { name: true },
+    });
+
+    this.websocketGateway.server.to(`group:${dto.idGroup}`).emit('hatm_completed', {
+      groupId: dto.idGroup,
+      groupName: group?.name,
+      completedHatmCount: updated.juzCount,
+      timestamp: new Date(),
+    });
+
+    return updated;
   }
 
   async updateFinishedPoralarCount(
@@ -45,12 +72,8 @@ export class FinishedPoralarCountService {
       throw new NotFoundException('Finished Poralar Count not found');
     }
 
-    // Check if the user is a member of the group
     const isMember = await this.prisma.groupMembers.findFirst({
-      where: {
-        group_id: finishedPoralarCount.idGroup,
-        user_id: userId,
-      },
+      where: { group_id: finishedPoralarCount.idGroup, user_id: userId },
     });
 
     if (!isMember) {
@@ -78,215 +101,75 @@ export class FinishedPoralarCountService {
   }
 
   async deleteFinishedPoralarCount(id: string, userId: string): Promise<void> {
-    const finishedPoralarCount = await this.prisma.finishedPoralarCount.findUnique({
-      where: { id },
-    });
-  
+    const finishedPoralarCount = await this.prisma.finishedPoralarCount.findUnique({ where: { id } });
+
     if (!finishedPoralarCount) {
       throw new NotFoundException('Finished Poralar Count not found');
     }
-  
-    // Check if the user is a member of the group
+
     const isMember = await this.prisma.groupMembers.findFirst({
-      where: {
-        group_id: finishedPoralarCount.idGroup,
-        user_id: userId,
-      },
+      where: { group_id: finishedPoralarCount.idGroup, user_id: userId },
     });
-  
+
     if (!isMember) {
       throw new ForbiddenException('You are not authorized to delete this finished poralar count');
     }
-  
-    await this.prisma.finishedPoralarCount.delete({
-      where: { id },
-    });
+
+    await this.prisma.finishedPoralarCount.delete({ where: { id } });
   }
-
-  // Method to finish a Juz and update counts
-  // async finishJuz(poraId: string, userId: string, idGroup: string): Promise<{ hatmCompleted: boolean }> {
-  //   return this.prisma.$transaction(async (prisma) => {
-  //     // Step 1: Mark the Pora as done
-  //     const bookedPora = await prisma.bookedPoralar.updateMany({
-  //       where: {
-  //         poraId,
-  //         userId,
-  //         idGroup,
-  //         isBooked: true,
-  //         isDone: false, // Only update if it's not done
-  //       },
-  //       data: {
-  //         isDone: true, // Mark as done
-  //       },
-  //     });
-
-  //     // If no rows were updated, throw an error
-  //     if (bookedPora.count === 0) {
-  //       throw new NotFoundException(`No active booking found for ${poraId} with user ID ${userId} in group ID ${idGroup}`);
-  //     }
-
-  //     // Step 2: Increment the finished Juz count
-  //     await prisma.finishedPoralarCount.updateMany({
-  //       where: { idGroup },
-  //       data: {
-  //         juzCount: { increment: 1 },
-  //       },
-  //     });
-
-  //     // Step 3: Get the Quran goal for the group
-  //     const groupGoal = await prisma.zikr.findFirst({
-  //       where: {
-  //         groupId: idGroup,
-  //         goal: { not: null }, // Assuming it's Quran if the goal is present
-  //       },
-  //       select: {
-  //         goal: true,
-  //       },
-  //     });
-
-  //     if (!groupGoal) {
-  //       throw new NotFoundException('No Quran goal found for this group');
-  //     }
-
-  //     const quranGoal = groupGoal.goal;
-
-  //     // Step 4: Fetch the current juzCount
-  //     const finishedCount = await prisma.finishedPoralarCount.findFirst({
-  //       where: { idGroup },
-  //       select: {
-  //         juzCount: true,
-  //       },
-  //     });
-
-  //     if (!finishedCount) {
-  //       throw new NotFoundException('Finished count not found');
-  //     }
-
-  //     const { juzCount } = finishedCount;
-
-  //     // Step 5: If the finished count reaches the goal, reset and increment the hatm count
-  //     let hatmCompleted = false;
-  //     if (juzCount >= quranGoal) {
-  //       await prisma.finishedPoralarCount.updateMany({
-  //         where: { idGroup },
-  //         data: {
-  //           juzCount: 0, // Reset the count
-  //         },
-  //       });
-
-  //       // Increment the hatmSoni for the group
-  //       await prisma.group.update({
-  //         where: { idGroup },
-  //         data: {
-  //           hatmSoni: { increment: 1 },
-  //         },
-  //       });
-
-  //       hatmCompleted = true;
-  //     }
-
-  //     return { hatmCompleted };
-  //   });
-  // }
 
   async finishJuz(poraId: string, userId: string, idGroup: string): Promise<{ hatmCompleted: boolean }> {
     return this.prisma.$transaction(async (prisma) => {
-      // Step 1: Mark the Pora as done
       const bookedPora = await prisma.bookedPoralar.updateMany({
-        where: {
-          poraId,
-          userId,
-          idGroup,
-          isBooked: true,
-          isDone: false, // Only update if it's not done
-        },
-        data: {
-          isDone: true, // Mark as done
-        },
+        where: { poraId, userId, idGroup, isBooked: true, isDone: false },
+        data: { isDone: true },
       });
 
-      // If no rows were updated, throw an error
       if (bookedPora.count === 0) {
-        throw new NotFoundException(`No active booking found for ${poraId} with user ID ${userId} in group ID ${idGroup}`);
+        throw new NotFoundException(`No active booking found for pora ${poraId} in group ${idGroup}`);
       }
 
-      // Step 2: Increment the finished Juz count
       await prisma.finishedPoralarCount.updateMany({
         where: { idGroup },
-        data: {
-          juzCount: { increment: 1 },
-        },
+        data: { juzCount: { increment: 1 } },
       });
 
-      // Step 3: Get the Quran goal for the group
-      const groupGoal = await prisma.zikr.findFirst({
-        where: {
-          groupId: idGroup,
-          goal: { not: null }, // Assuming it's Quran if the goal is present
-        },
-        select: {
-          goal: true,
-        },
-      });
-
-      if (!groupGoal) {
-        throw new NotFoundException('No Quran goal found for this group');
-      }
-
-      const quranGoal = groupGoal.goal;
-
-      // Step 4: Fetch the current juzCount
       const finishedCount = await prisma.finishedPoralarCount.findFirst({
         where: { idGroup },
-        select: {
-          juzCount: true,
-        },
-      });
-
-      if (!finishedCount) {
-        throw new NotFoundException('Finished count not found');
-      }
-
-      const { juzCount } = finishedCount;
-
-      // Step 5: If the finished count reaches the goal, reset and increment the hatm count
-      let hatmCompleted = false;
-      if (juzCount >= quranGoal) {
-        await prisma.finishedPoralarCount.updateMany({
-          where: { idGroup },
-          data: {
-            juzCount: 0, // Reset the count
-          },
-        });
-
-        // Increment the hatmSoni for the group
-        await prisma.group.update({
-          where: { idGroup },
-          data: {
-            hatmSoni: { increment: 1 },
-          },
-        });
-
-        hatmCompleted = true;
-      }
-
-      // Get additional information for WebSocket notification
-      const user = await prisma.user.findUnique({
-        where: { userId },
-        select: { name: true, surname: true }
-      });
-
-      const pora = await prisma.poralar.findUnique({
-        where: { id: poraId },
-        select: { name: true }
+        select: { juzCount: true },
       });
 
       const group = await prisma.group.findUnique({
         where: { idGroup },
-        select: { name: true }
+        select: { name: true, hatmSoni: true },
       });
 
-      // Send WebSocket notification
+      const user = await prisma.user.findUnique({
+        where: { userId },
+        select: { name: true, surname: true },
+      });
+
+      const pora = await prisma.poralar.findUnique({
+        where: { id: poraId },
+        select: { name: true },
+      });
+
+      const juzCount = finishedCount?.juzCount ?? 0;
+      // 30 juz = one full hatm
+      const hatmCompleted = juzCount >= 30;
+
+      if (hatmCompleted) {
+        await prisma.finishedPoralarCount.updateMany({
+          where: { idGroup },
+          data: { juzCount: 0 },
+        });
+
+        await prisma.group.update({
+          where: { idGroup },
+          data: { completedHatmCount: { increment: 1 } },
+        });
+      }
+
       this.websocketGateway.server.to(`group:${idGroup}`).emit('pora_completed', {
         poraId,
         poraName: pora?.name,
@@ -296,24 +179,19 @@ export class FinishedPoralarCountService {
         userName: `${user?.name} ${user?.surname}`,
         totalFinished: hatmCompleted ? 0 : juzCount,
         hatmCompleted,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
 
       if (hatmCompleted) {
-        // Send special hatm completed notification
         this.websocketGateway.server.to(`group:${idGroup}`).emit('hatm_completed', {
           groupId: idGroup,
           groupName: group?.name,
-          hatmCount: (await prisma.group.findUnique({
-            where: { idGroup },
-            select: { hatmSoni: true }
-          }))?.hatmSoni,
-          timestamp: new Date()
+          completedHatmCount: (group?.hatmSoni ?? 0) + 1,
+          timestamp: new Date(),
         });
       }
 
       return { hatmCompleted };
     });
   }
-
 }

@@ -1,14 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID, IsInt, IsNotEmpty } from 'class-validator';
+import { IsUUID, IsNotEmpty } from 'class-validator';
 
 export class CreateFinishedPoralarCountDto {
   @IsUUID()
   @IsNotEmpty()
-  @ApiProperty({ example: 'group-uuid' })
+  @ApiProperty({ example: 'group-uuid', description: 'The group for which a hatm has been completed' })
   idGroup: string;
-
-  @IsInt()
-  @IsNotEmpty()
-  @ApiProperty({ example: 30 })
-  juzCount: number;
 }

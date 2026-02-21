@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@prisma';
-import { CreateZikrCountDto, UpdateZikrCountDto } from './dto';
+import { UpdateZikrCountDto } from './dto';
 import { ZikrCounts, Role } from '@prisma/client';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 
@@ -11,12 +11,6 @@ export class ZikrCountsService {
     private readonly websocketGateway: WebsocketGateway
   ) {}
 
-  async createZikrCount(createZikrCountDto: CreateZikrCountDto): Promise<ZikrCounts> {
-    return this.prisma.zikrCounts.create({
-      data: createZikrCountDto,
-    });
-  }
-
   async updateZikrCount(id: string, updateZikrCountDto: UpdateZikrCountDto, userId: string): Promise<ZikrCounts> {
     const zikrCount = await this.prisma.zikrCounts.findUnique({ where: { id } });
 
@@ -24,7 +18,6 @@ export class ZikrCountsService {
       throw new NotFoundException('ZikrCount not found');
     }
 
-    // Authorization: Only the user or GroupAdmin can update ZikrCount
     const isAuthorized = await this.isUserGroupAdminOrUser(zikrCount.groupId, userId);
     if (!isAuthorized) {
       throw new ForbiddenException('You are not authorized to update this ZikrCount');
@@ -38,21 +31,17 @@ export class ZikrCountsService {
 
   async getZikrCountForUser(userId: string, groupId: string): Promise<ZikrCounts[]> {
     const zikrCounts = await this.prisma.zikrCounts.findMany({
-      where: {
-        userId,
-        groupId,
-      },
+      where: { userId, groupId },
     });
-  
+
     if (zikrCounts.length === 0) {
       throw new NotFoundException('No Zikr counts found for the user in this group');
     }
-  
+
     return zikrCounts;
   }
-  
 
-  async getAllZikrCounts(): Promise<ZikrCounts[]> { // for a specific gruop
+  async getAllZikrCounts(): Promise<ZikrCounts[]> {
     return this.prisma.zikrCounts.findMany();
   }
 
@@ -63,194 +52,113 @@ export class ZikrCountsService {
       throw new NotFoundException('ZikrCount not found');
     }
 
-    // Authorization: Only the user or GroupAdmin can delete ZikrCount
     const isAuthorized = await this.isUserGroupAdminOrUser(zikrCount.groupId, userId);
     if (!isAuthorized) {
       throw new ForbiddenException('You are not authorized to delete this ZikrCount');
     }
 
-    await this.prisma.zikrCounts.delete({
-      where: { id },
-    });
+    await this.prisma.zikrCounts.delete({ where: { id } });
   }
 
-  // async addZikrCountForGroup(groupId: string, zikrId: string, count: number, userId: string): Promise<{ totalCount: number; goalReached: boolean }> {
-  //   if (!groupId || !zikrId || !count) {
-  //     throw new NotFoundException('Missing required parameters');
-  //   }
-
-  //   // Step 1: Retrieve the current goal for the zikr in the group
-  //   const zikrData = await this.prisma.zikr.findUnique({
-  //     where: {
-  //       id: zikrId,
-  //     },
-  //     select: {
-  //       goal: true,
-  //     },
-  //   });
-
-  //   if (!zikrData) {
-  //     throw new NotFoundException('No Zikr found for this group');
-  //   }
-
-  //   const goal = zikrData.goal;
-
-  //   // Step 2: Check if a record exists in group_zikr_activities for the combination of groupId and zikrId
-  //   const existingRecord = await this.prisma.groupZikrActivities.findFirst({
-  //     where: {
-  //       group_id: groupId,
-  //       zikr_id: zikrId,
-  //     },
-  //   });
-
-  //   let totalCount: number;
-
-  //   if (existingRecord) {
-  //     // Step 3: If the record exists, update the zikr_count
-  //     totalCount = existingRecord.zikr_count + count;
-  //     await this.prisma.groupZikrActivities.update({
-  //       where: {
-  //         id: existingRecord.id,
-  //       },
-  //       data: {
-  //         zikr_count: totalCount,
-  //         last_updated: new Date(),
-  //       },
-  //     });
-  //   } else {
-  //     // Step 4: If the record does not exist, insert a new row
-  //     totalCount = count;
-  //     await this.prisma.groupZikrActivities.create({
-  //       data: {
-  //         group_id: groupId,
-  //         zikr_id: zikrId,
-  //         zikr_count: count,
-  //         last_updated: new Date(),
-  //       },
-  //     });
-  //   }
-
-  //   // Step 5: Check if the updated total count has reached or exceeded the goal
-  //   const goalReached = totalCount >= goal;
-
-  //   return {
-  //     totalCount,
-  //     goalReached,
-  //   };
-  // }
-
-  // Helper function to check if a user is an Admin or GroupAdmin or the user himself
- 
-  async addZikrCountForGroup(groupId: string, zikrId: string, count: number, userId: string): Promise<{ totalCount: number; goalReached: boolean }> {
-    if (!groupId || !zikrId || !count) {
-      throw new NotFoundException('Missing required parameters');
-    }
-
-    // Step 1: Retrieve the current goal for the zikr in the group
-    const zikrData = await this.prisma.zikr.findUnique({
-      where: {
-        id: zikrId,
-      },
-      select: {
-        goal: true,
-        name: true
-      },
+  async addZikrCountForGroup(
+    groupId: string,
+    count: number,
+    userId: string,
+  ): Promise<{ totalCount: number; goalReached: boolean }> {
+    // Auto-find the zikr for this group
+    const zikr = await this.prisma.zikr.findFirst({
+      where: { groupId },
+      select: { id: true, goal: true, name: true },
     });
 
-    if (!zikrData) {
+    if (!zikr) {
       throw new NotFoundException('No Zikr found for this group');
     }
 
-    const goal = zikrData.goal;
+    const goal = zikr.goal;
 
-    // Step 2: Record the user's zikr count
-    const zikrCount = await this.prisma.zikrCounts.create({
-      data: {
-        groupId,
+    // Upsert today's ZikrCounts record for this user+group
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const existing = await this.prisma.zikrCounts.findFirst({
+      where: {
         userId,
-        count,
-        sessionDate: new Date(),
-        zikr_goal_id: zikrId
-      }
+        groupId,
+        sessionDate: { gte: today },
+      },
     });
 
-    // Step 3: Check if a record exists in group_zikr_activities
-    const existingRecord = await this.prisma.groupZikrActivities.findFirst({
-      where: {
-        group_id: groupId,
-        zikr_id: zikrId,
-      },
+    if (existing) {
+      await this.prisma.zikrCounts.update({
+        where: { id: existing.id },
+        data: { count: { increment: count } },
+      });
+    } else {
+      await this.prisma.zikrCounts.create({
+        data: {
+          groupId,
+          userId,
+          count,
+          sessionDate: new Date(),
+          zikr_goal_id: zikr.id,
+        },
+      });
+    }
+
+    // Update GroupZikrActivities
+    const existingActivity = await this.prisma.groupZikrActivities.findFirst({
+      where: { group_id: groupId, zikr_id: zikr.id },
     });
 
     let totalCount: number;
 
-    if (existingRecord) {
-      // Step 4: If the record exists, update the zikr_count
-      totalCount = existingRecord.zikr_count + count;
+    if (existingActivity) {
+      totalCount = existingActivity.zikr_count + count;
       await this.prisma.groupZikrActivities.update({
-        where: {
-          id: existingRecord.id,
-        },
-        data: {
-          zikr_count: totalCount,
-          last_updated: new Date(),
-        },
+        where: { id: existingActivity.id },
+        data: { zikr_count: totalCount, last_updated: new Date() },
       });
     } else {
-      // Step 5: If the record does not exist, insert a new row
       totalCount = count;
       await this.prisma.groupZikrActivities.create({
         data: {
           group_id: groupId,
-          zikr_id: zikrId,
+          zikr_id: zikr.id,
           zikr_count: count,
           last_updated: new Date(),
         },
       });
     }
 
-    // Step 6: Check if the updated total count has reached or exceeded the goal
     const goalReached = totalCount >= goal;
 
-    // Get user info for the WebSocket notification
     const user = await this.prisma.user.findUnique({
       where: { userId },
-      select: { name: true, surname: true }
+      select: { name: true, surname: true },
     });
 
-    // Step 7: Notify all group members via WebSocket
     this.websocketGateway.server.to(`group:${groupId}`).emit('zikr_count_updated', {
       groupId,
-      zikrId,
-      zikrName: zikrData.name,
+      zikrId: zikr.id,
+      zikrName: zikr.name,
       userId,
       userName: `${user?.name} ${user?.surname}`,
       count,
       totalCount,
       progress: Math.min(100, (totalCount / goal) * 100).toFixed(2),
       goalReached,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
-    return {
-      totalCount,
-      goalReached,
-    };
+    return { totalCount, goalReached };
   }
 
- 
   private async isUserGroupAdminOrUser(groupId: string, userId: string): Promise<boolean> {
-    const group = await this.prisma.group.findUnique({
-      where: { idGroup: groupId },
-    });
+    const group = await this.prisma.group.findUnique({ where: { idGroup: groupId } });
 
-    if (!group) {
-      return false;
-    }
-
-    if (group.adminId === userId) {
-      return true; // User is the GroupAdmin
-    }
+    if (!group) return false;
+    if (group.adminId === userId) return true;
 
     const user = await this.prisma.user.findUnique({
       where: { userId },

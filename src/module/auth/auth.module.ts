@@ -5,7 +5,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { UsersModule } from '../users/users.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
-import { WebsocketModule } from '../websocket/websocket.module';
 
 @Module({
   imports: [
@@ -14,15 +13,15 @@ import { WebsocketModule } from '../websocket/websocket.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get('jwt.secret'),
-        signOptions: { 
-          expiresIn: configService.get('jwt.expiration') 
+        signOptions: {
+          expiresIn: configService.get('jwt.expiration')
         },
       }),
     }),
     UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService,WebsocketGateway],
+  providers: [AuthService, WebsocketGateway],
   exports: [AuthService],
 })
 export class AuthModule {}

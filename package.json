@@ -89,6 +89,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@prisma$": "<rootDir>/prisma",
+      "^@common$": "<rootDir>/common",
+      "^@module$": "<rootDir>/module",
+      "^@config$": "<rootDir>/config"
+    }
   }
 }

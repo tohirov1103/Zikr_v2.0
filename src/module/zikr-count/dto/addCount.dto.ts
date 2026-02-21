@@ -7,13 +7,8 @@ export class AddCount {
   @ApiProperty({ example: 'group-uuid' })
   groupId: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  @ApiProperty({ example: 'zikr-uuid' })
-   zikrId: string;
-
   @IsInt()
   @IsNotEmpty()
   @ApiProperty({ example: 1 })
-   count: number
+  count: number;
 }

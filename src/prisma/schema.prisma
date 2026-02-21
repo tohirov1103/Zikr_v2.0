@@ -4,7 +4,8 @@ datasource db {
 }
 
 generator client {
-    provider = "prisma-client-js"
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 enum Role {
@@ -21,6 +22,12 @@ enum Role {
 enum GroupType {
     QURAN
     ZIKR
+}
+
+enum InviteStatus {
+    PENDING
+    ACCEPTED
+    IGNORED
 }
 
 model User {
@@ -79,8 +86,9 @@ model Group {
     adminId   String
     guruhImg  String?
     kimga     String?
-    isPublic  Boolean
-    hatmSoni  Int
+    isPublic          Boolean
+    hatmSoni          Int
+    completedHatmCount Int @default(0)
 
     admin User @relation(fields: [adminId], references: [userId], onDelete: Cascade, onUpdate: NoAction)
 
@@ -127,12 +135,13 @@ model GroupZikrActivities {
 }
 
 model Notifications {
-    id         String   @id @default(uuid())
+    id         String       @id @default(uuid())
     senderId   String
     receiverId String
     groupId    String
     isInvite   Boolean
     isRead     Boolean
+    status     InviteStatus @default(PENDING)
     time       DateTime
 
     created_at DateTime @default(now())
@@ -157,6 +166,7 @@ model Zikr {
     id        String  @id @default(uuid())
     name      String
     desc      String
+    hint      String?
     body      String
     sound_url String?
     goal      Int

@@ -1,19 +1,14 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsBoolean, IsUUID } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsBoolean } from 'class-validator';
 
 export class UpdateBookedPoralarDto {
   @IsOptional()
   @IsBoolean()
-  @ApiProperty({ example: true, required: false })
+  @ApiPropertyOptional({ example: true })
   isBooked?: boolean;
 
   @IsOptional()
   @IsBoolean()
-  @ApiProperty({ example: false, required: false })
+  @ApiPropertyOptional({ example: false })
   isDone?: boolean;
-
-  @IsOptional()
-  @IsUUID()
-  @ApiProperty({ example: 'pora-uuid', required: false })
-  poraId?: string;
 }

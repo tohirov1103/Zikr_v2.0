@@ -13,6 +13,8 @@ import { FinishedPoralarCountModule } from './module/finished-poralar-count/fini
 import { PoralarModule } from './module/poralar/poralar.module';
 import { WebsocketModule } from './module/websocket/websocket.module';
 import { HealthModule } from './module/health/health.module';
+import { QuranGroupModule } from './module/quran-group/quran-group.module';
+import { ZikrGroupModule } from './module/zikr-group/zikr-group.module';
 
 @Module({
   imports: [
@@ -43,7 +45,9 @@ import { HealthModule } from './module/health/health.module';
     FinishedPoralarCountModule,
     PoralarModule,
     WebsocketModule,
-    HealthModule
+    HealthModule,
+    QuranGroupModule,
+    ZikrGroupModule,
   ],
   controllers: [],
   providers: [],

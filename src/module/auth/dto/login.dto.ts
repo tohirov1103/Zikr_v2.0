@@ -3,9 +3,9 @@ import { IsEmail, IsNotEmpty, IsOptional, IsPhoneNumber, IsString, MinLength } f
 
 export class LoginDto {
     @IsEmail()
-    @IsOptional()
-    @ApiPropertyOptional({ example: 'john@gmail.com' })
-    email?: string;
+    @IsNotEmpty()
+    @ApiProperty({ example: 'john@gmail.com' })
+    email: string;
 
     @IsPhoneNumber('UZ')
     @IsOptional()
@@ -17,4 +17,9 @@ export class LoginDto {
     @MinLength(5)
     @ApiProperty({ example: '12345' })
     password: string;
+
+    @IsString()
+    @IsNotEmpty()
+    @ApiProperty({ example: '123456', description: 'OTP sent to email' })
+    otp: string;
 }

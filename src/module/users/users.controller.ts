@@ -25,6 +25,15 @@ export class UsersController {
   }
 
   @Roles(Role.USER)
+  @Delete('me')
+  @ApiOperation({ summary: 'Delete the current user\'s account' })
+  async deleteMe(@Req() request: Request) {
+    const user = request.user as JwtPayload;
+    await this.usersService.deleteUser(user.id);
+    return successResponse(null, 'Account deleted successfully');
+  }
+
+  @Roles(Role.USER)
   @Put('me')
   @ApiOperation({ summary: 'Update the current user\'s profile' })
   async updateMe(

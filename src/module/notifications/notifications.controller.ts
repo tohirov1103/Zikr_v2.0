@@ -1,11 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Req } from '@nestjs/common';
-
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { RolesGuard, Roles, JwtPayload } from '@common';
 import { Role } from '@prisma/client';
 import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { NotificationService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -17,25 +15,34 @@ export class NotificationController {
 
   @Roles(Role.USER, Role.ADMIN)
   @Post()
-  @ApiOperation({ summary: 'Create a new notification' })
-  async createNotification(@Req() request: Request, @Body() createNotificationDto: CreateNotificationDto) {
+  @ApiOperation({ summary: 'Send a group invitation to a user' })
+  async createInvite(@Req() request: Request, @Body() dto: CreateNotificationDto) {
     const user = request.user as JwtPayload;
-    return this.notificationService.createNotification(user.id, createNotificationDto);
+    return this.notificationService.createInvite(user.id, dto);
   }
 
   @Roles(Role.USER)
   @Get()
-  @ApiOperation({ summary: 'Get all notifications for the current user' })
-  async getNotificationsForUser(@Req() request: Request) {
+  @ApiOperation({ summary: 'Get all pending invitations for the current user' })
+  async getPendingInvites(@Req() request: Request) {
     const user = request.user as JwtPayload;
-    return this.notificationService.getNotificationsForUser(user.id);
+    return this.notificationService.getPendingInvitesForUser(user.id);
   }
 
   @Roles(Role.USER)
-  @Patch(':id')
-  @ApiOperation({ summary: 'Mark a notification as read' })
-  async markAsRead(@Param('id') id: string, @Body() updateNotificationDto: UpdateNotificationDto) {
-    return this.notificationService.markAsRead(id, updateNotificationDto);
+  @Patch(':id/accept')
+  @ApiOperation({ summary: 'Accept a group invitation' })
+  async acceptInvite(@Req() request: Request, @Param('id') id: string) {
+    const user = request.user as JwtPayload;
+    return this.notificationService.acceptInvite(id, user.id);
+  }
+
+  @Roles(Role.USER)
+  @Patch(':id/ignore')
+  @ApiOperation({ summary: 'Ignore a group invitation' })
+  async ignoreInvite(@Req() request: Request, @Param('id') id: string) {
+    const user = request.user as JwtPayload;
+    return this.notificationService.ignoreInvite(id, user.id);
   }
 
   @Roles(Role.USER)

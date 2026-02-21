@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@prisma';
-import { BookedPoralar } from '@prisma/client';
 import { CreateBookedPoralarDto, UpdateBookedPoralarDto } from './dto';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 
@@ -11,24 +10,28 @@ export class BookedPoralarService {
     private readonly websocketGateway: WebsocketGateway
   ) {}
 
-  async createBookedPoralar(createBookedPoralarDto: CreateBookedPoralarDto, userId: string): Promise<BookedPoralar> {
+  async createBookedPoralar(createBookedPoralarDto: CreateBookedPoralarDto, userId: string) {
     const booking = await this.prisma.bookedPoralar.create({
       data: {
         ...createBookedPoralarDto,
         userId,
+        isBooked: true,
+        isDone: false,
       },
       include: {
         pora: true,
         user: {
           select: {
+            userId: true,
             name: true,
-            surname: true
-          }
-        }
-      }
+            surname: true,
+            image_url: true,
+            phone: true,
+          },
+        },
+      },
     });
 
-    // Notify group members via WebSocket
     this.websocketGateway.server.to(`group:${booking.idGroup}`).emit('pora_booked', {
       bookingId: booking.id,
       poraId: booking.poraId,
@@ -36,26 +39,22 @@ export class BookedPoralarService {
       groupId: booking.idGroup,
       userId: booking.userId,
       userName: `${booking.user.name} ${booking.user.surname}`,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     return booking;
   }
 
-
-  async updateBookedPoralar(id: string, updateBookedPoralarDto: UpdateBookedPoralarDto, userId: string): Promise<BookedPoralar> {
-    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({ 
+  async updateBookedPoralar(id: string, updateBookedPoralarDto: UpdateBookedPoralarDto, userId: string) {
+    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({
       where: { id },
-      include: {
-        pora: true
-      }
+      include: { pora: true },
     });
 
     if (!bookedPoralar) {
       throw new NotFoundException('BookedPoralar not found');
     }
 
-    // Only the user who booked the pora can update the booking status
     if (bookedPoralar.userId !== userId) {
       throw new ForbiddenException('You are not authorized to update this booking');
     }
@@ -65,21 +64,19 @@ export class BookedPoralarService {
       data: updateBookedPoralarDto,
     });
 
-    // If pora is marked as done, notify group members
     if (updateBookedPoralarDto.isDone === true && bookedPoralar.isDone === false) {
-      // Get finishedPoralarCount
       const finishedCount = await this.prisma.finishedPoralarCount.findFirst({
-        where: { idGroup: bookedPoralar.idGroup }
+        where: { idGroup: bookedPoralar.idGroup },
       });
 
       const user = await this.prisma.user.findUnique({
         where: { userId },
-        select: { name: true, surname: true }
+        select: { name: true, surname: true },
       });
 
       const group = await this.prisma.group.findUnique({
         where: { idGroup: bookedPoralar.idGroup },
-        select: { name: true }
+        select: { name: true },
       });
 
       this.websocketGateway.server.to(`group:${bookedPoralar.idGroup}`).emit('pora_completed', {
@@ -92,15 +89,20 @@ export class BookedPoralarService {
         userName: `${user?.name} ${user?.surname}`,
         totalFinished: finishedCount?.juzCount || 0,
         hatmCompleted: false,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     }
 
     return updatedBooking;
   }
 
-  async getBookedPoralarById(id: string): Promise<BookedPoralar> {
-    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({ where: { id } });
+  async getBookedPoralarById(id: string) {
+    const bookedPoralar = await this.prisma.bookedPoralar.findUnique({
+      where: { id },
+      include: {
+        user: { select: { userId: true, name: true, image_url: true, phone: true } },
+      },
+    });
 
     if (!bookedPoralar) {
       throw new NotFoundException('BookedPoralar not found');
@@ -109,14 +111,10 @@ export class BookedPoralarService {
     return bookedPoralar;
   }
 
-  async getAllBookedPoralar(groupId?: string): Promise<BookedPoralar[]> {
+  async getAllBookedPoralar(groupId?: string) {
     return this.prisma.bookedPoralar.findMany({
-      where: {
-        idGroup: groupId,  // Filter by group if provided
-      },
-      include: {
-        pora: true,  // Include related Pora information
-      },
+      where: { idGroup: groupId },
+      include: { pora: true },
     });
   }
 
@@ -127,15 +125,11 @@ export class BookedPoralarService {
       throw new NotFoundException('BookedPoralar not found');
     }
 
-    // Check if the user is the one who booked the pora
     if (bookedPoralar.userId === userId) {
-      await this.prisma.bookedPoralar.delete({
-        where: { id },
-      });
+      await this.prisma.bookedPoralar.delete({ where: { id } });
       return;
     }
 
-    // Check if the user is a GroupAdmin for the group associated with this booking
     const groupMember = await this.prisma.groupMembers.findUnique({
       where: {
         group_id_user_id: {
@@ -147,9 +141,7 @@ export class BookedPoralarService {
     });
 
     if (groupMember?.role === 'GroupAdmin') {
-      await this.prisma.bookedPoralar.delete({
-        where: { id },
-      });
+      await this.prisma.bookedPoralar.delete({ where: { id } });
     } else {
       throw new ForbiddenException('You are not authorized to delete this booking');
     }

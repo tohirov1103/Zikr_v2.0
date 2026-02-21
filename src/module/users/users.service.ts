@@ -32,11 +32,26 @@ export class UsersService {
   }
 
   async getUserById(id: string) {
-    const user = await this.prismaService.user.findUnique({ where: { userId: id } });
+    const [user, quranGroupCount, zikrGroupCount] = await Promise.all([
+      this.prismaService.user.findUnique({ where: { userId: id } }),
+      this.prismaService.group.count({
+        where: {
+          groupType: 'QURAN',
+          OR: [{ adminId: id }, { members: { some: { user_id: id } } }],
+        },
+      }),
+      this.prismaService.group.count({
+        where: {
+          groupType: 'ZIKR',
+          OR: [{ adminId: id }, { members: { some: { user_id: id } } }],
+        },
+      }),
+    ]);
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return user;
+    return { ...user, quranGroupCount, zikrGroupCount };
   }
 
   async getAllUsers() {
