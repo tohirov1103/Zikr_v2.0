@@ -5,18 +5,8 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
-import { UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn().mockReturnValue({
-    sendMail: jest.fn().mockResolvedValue({}),
-  }),
-}));
-
-jest.mock('otp-generator', () => ({
-  generate: jest.fn().mockReturnValue('123456'),
-}));
 
 const mockUser = {
   userId: 'user-uuid',
@@ -30,7 +20,9 @@ const mockUser = {
 
 const mockUsersService = {
   findOneByEmail: jest.fn(),
+  findOneByPhone: jest.fn(),
   createUser: jest.fn(),
+  updateUser: jest.fn(),
 };
 
 const mockJwtService = {
@@ -38,15 +30,7 @@ const mockJwtService = {
 };
 
 const mockConfigService = {
-  get: jest.fn((key: string) => {
-    const cfg: any = {
-      'mail.host': 'smtp.test.com',
-      'mail.port': '587',
-      'mail.user': 'test@mail.com',
-      'mail.pass': 'pass',
-    };
-    return cfg[key];
-  }),
+  get: jest.fn(),
 };
 
 const mockCacheManager = {
@@ -78,77 +62,118 @@ describe('AuthService', () => {
     jest.clearAllMocks();
   });
 
-  describe('sendOtp', () => {
-    it('should throw NotFoundException if user not found', async () => {
-      mockUsersService.findOneByEmail.mockResolvedValue(null);
-      await expect(service.sendOtp({ email: 'notfound@test.com' })).rejects.toThrow(NotFoundException);
+  describe('register', () => {
+    it('should throw if email already exists', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
+      await expect(
+        service.register({ name: 'A', surname: 'B', email: mockUser.email, password: '12345', phone: '+998900000000' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
-    it('should generate OTP, cache it, and send email', async () => {
-      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
-      const result = await service.sendOtp({ email: 'test@example.com' });
-      expect(mockCacheManager.set).toHaveBeenCalledWith(
-        'otp:test@example.com',
-        { otp: '123456', phone: mockUser.phone },
-        300000,
-      );
-      expect(result).toEqual({ message: 'OTP sent to email' });
+    it('should throw if phone already exists', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(null);
+      mockUsersService.findOneByPhone.mockResolvedValue(mockUser);
+      await expect(
+        service.register({ name: 'A', surname: 'B', email: 'new@test.com', password: '12345', phone: mockUser.phone }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should cache registration data and return message', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(null);
+      mockUsersService.findOneByPhone.mockResolvedValue(null);
+      const result = await service.register({ name: 'A', surname: 'B', email: 'new@test.com', password: '12345', phone: '+998900000000' });
+      expect(mockCacheManager.set).toHaveBeenCalled();
+      expect(result.message).toContain('OTP');
+    });
+  });
+
+  describe('verifyRegistration', () => {
+    it('should throw if OTP not in cache', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      await expect(service.verifyRegistration({ email: 'test@test.com', otp: '000000' })).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if OTP is wrong', async () => {
+      mockCacheManager.get.mockResolvedValue({ otp: '000000', name: 'A', surname: 'B', email: 'a@b.com', password: '12345', phone: '+998900000000' });
+      await expect(service.verifyRegistration({ email: 'a@b.com', otp: '999999' })).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should create user on correct OTP', async () => {
+      mockCacheManager.get.mockResolvedValue({ otp: '000000', name: 'A', surname: 'B', email: 'a@b.com', password: '12345', phone: '+998900000000' });
+      mockUsersService.createUser.mockResolvedValue({ userId: 'new-id', role: 'USER' });
+      const result = await service.verifyRegistration({ email: 'a@b.com', otp: '000000' });
+      expect(result.token).toBe('mock-token');
+      expect(mockCacheManager.del).toHaveBeenCalledWith('register:a@b.com');
     });
   });
 
   describe('userLogin', () => {
-    it('should throw UnauthorizedException for wrong password', async () => {
+    it('should throw for wrong password', async () => {
       mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(false as never);
       await expect(
-        service.userLogin({ email: mockUser.email, password: 'wrong', otp: '123456' }),
+        service.userLogin({ emailOrPhone: mockUser.email, password: 'wrong' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw UnauthorizedException if OTP not in cache', async () => {
+    it('should login with email', async () => {
       mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      mockCacheManager.get.mockResolvedValue(null);
-      await expect(
-        service.userLogin({ email: mockUser.email, password: 'pass', otp: '123456' }),
-      ).rejects.toThrow(UnauthorizedException);
+      const result = await service.userLogin({ emailOrPhone: mockUser.email, password: 'pass' });
+      expect(result).toEqual({ message: 'Login successful', token: 'mock-token' });
     });
 
-    it('should throw UnauthorizedException if OTP is wrong', async () => {
-      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
+    it('should login with phone number', async () => {
+      mockUsersService.findOneByPhone.mockResolvedValue(mockUser);
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      mockCacheManager.get.mockResolvedValue({ otp: '999999', phone: mockUser.phone });
-      await expect(
-        service.userLogin({ email: mockUser.email, password: 'pass', otp: '123456' }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw UnauthorizedException if phone mismatches', async () => {
-      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
-      jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      mockCacheManager.get.mockResolvedValue({ otp: '123456', phone: '+998000000000' });
-      await expect(
-        service.userLogin({ email: mockUser.email, password: 'pass', otp: '123456' }),
-      ).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should return token on valid credentials + OTP + phone match', async () => {
-      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
-      jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
-      mockCacheManager.get.mockResolvedValue({ otp: '123456', phone: mockUser.phone });
-      const result = await service.userLogin({ email: mockUser.email, password: 'pass', otp: '123456' });
-      expect(mockCacheManager.del).toHaveBeenCalledWith(`otp:${mockUser.email}`);
+      const result = await service.userLogin({ emailOrPhone: mockUser.phone, password: 'pass' });
       expect(result).toEqual({ message: 'Login successful', token: 'mock-token' });
     });
   });
 
   describe('adminLogin', () => {
-    it('should throw UnauthorizedException if user is not ADMIN', async () => {
+    it('should throw if user is not ADMIN', async () => {
       mockUsersService.findOneByEmail.mockResolvedValue(mockUser); // role: USER
       jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true as never);
       await expect(
-        service.adminLogin({ email: mockUser.email, password: 'pass', otp: '000000' }),
+        service.adminLogin({ emailOrPhone: mockUser.email, password: 'pass' }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('forgotPassword', () => {
+    it('should throw if email not found', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(null);
+      await expect(service.forgotPassword({ email: 'nope@test.com' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('should cache OTP and return message', async () => {
+      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
+      const result = await service.forgotPassword({ email: mockUser.email });
+      expect(mockCacheManager.set).toHaveBeenCalled();
+      expect(result.message).toContain('OTP');
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('should throw if OTP expired', async () => {
+      mockCacheManager.get.mockResolvedValue(null);
+      await expect(service.resetPassword({ email: 'a@b.com', otp: '000000', newPassword: '12345' })).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw if OTP wrong', async () => {
+      mockCacheManager.get.mockResolvedValue({ otp: '000000' });
+      await expect(service.resetPassword({ email: 'a@b.com', otp: '999999', newPassword: '12345' })).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should update password on correct OTP', async () => {
+      mockCacheManager.get.mockResolvedValue({ otp: '000000' });
+      mockUsersService.findOneByEmail.mockResolvedValue(mockUser);
+      mockUsersService.updateUser.mockResolvedValue({});
+      const result = await service.resetPassword({ email: mockUser.email, otp: '000000', newPassword: 'newpass' });
+      expect(mockUsersService.updateUser).toHaveBeenCalled();
+      expect(mockCacheManager.del).toHaveBeenCalledWith(`forgot:${mockUser.email}`);
+      expect(result.message).toContain('yangilandi');
     });
   });
 });

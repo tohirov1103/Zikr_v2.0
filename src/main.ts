@@ -4,11 +4,16 @@ import * as basicAuth from 'express-basic-auth';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 // import { HttpExceptionFilter } from './common/filters';
 import { LoggingInterceptor } from './common/interceptors';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { cors: true });
+
+  // Serve uploaded files as static assets
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
   
   const configService = app.get(ConfigService);
 

@@ -60,6 +60,30 @@ export class UsersService {
 
   async updateUser(id: string, updateUserDto: UpdateUserDto) {
     await this.getUserById(id);
+
+    if (updateUserDto.email) {
+      const existingEmail = await this.prismaService.user.findFirst({
+        where: { email: updateUserDto.email, NOT: { userId: id } },
+      });
+      if (existingEmail) {
+        throw new BadRequestException('Bu email uchun allaqachon account mavjud');
+      }
+    }
+
+    if (updateUserDto.phone) {
+      const existingPhone = await this.prismaService.user.findFirst({
+        where: { phone: updateUserDto.phone, NOT: { userId: id } },
+      });
+      if (existingPhone) {
+        throw new BadRequestException('Bu telefon raqam uchun allaqachon account mavjud');
+      }
+    }
+
+    if (updateUserDto.password) {
+      const { PasswordHasher } = await import('@common');
+      updateUserDto.password = await PasswordHasher.hashPassword(updateUserDto.password);
+    }
+
     return await this.prismaService.user.update({
       where: { userId: id },
       data: { ...updateUserDto },

@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException, NotFoundExcepti
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { PasswordHasher } from '@common';
-import { LoginDto, RegisterDto, SendOtpDto } from './dto';
+import { LoginDto, RegisterDto, SendOtpDto, VerifyOtpDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
 import { Role } from '@prisma/client';
 import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -19,89 +19,113 @@ export class AuthService {
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
   ) {}
 
-  private async validateUser(email: string, password: string): Promise<any> {
-    const user = await this.usersService.findOneByEmail(email);
-    if (user && (await PasswordHasher.comparePassword(password, user.password))) {
-      const { password: _pw, ...userData } = user;
-      return userData;
-    }
-    return null;
-  }
-
   private generateToken(user: any) {
     const payload = { id: user.userId, role: user.role };
     return this.jwtService.sign(payload);
   }
 
-  async sendOtp(dto: SendOtpDto) {
-    const user = await this.usersService.findOneByEmail(dto.email);
-    if (!user) {
-      throw new NotFoundException('User with this email not found');
+  // ===================== REGISTER FLOW =====================
+
+  // Step 1: User submits registration data → OTP sent to email
+  async register(registerDto: RegisterDto) {
+    const existingEmail = await this.usersService.findOneByEmail(registerDto.email);
+    if (existingEmail) {
+      throw new BadRequestException('Bu email uchun allaqachon account mavjud');
     }
 
-    // TODO: replace '000000' with real OTP generation and email sending in production
+    const existingPhone = await this.usersService.findOneByPhone(registerDto.phone);
+    if (existingPhone) {
+      throw new BadRequestException('Bu telefon raqam uchun allaqachon account mavjud');
+    }
+
+    // TODO: replace '000000' with real OTP generation in production
     const otp = '000000';
 
-    // TTL in milliseconds: 5 minutes
-    await this.cacheManager.set(`otp:${dto.email}`, { otp, phone: user.phone }, 300000);
+    // Cache registration data + OTP for 5 minutes
+    await this.cacheManager.set(`register:${registerDto.email}`, {
+      otp,
+      ...registerDto,
+    }, 300000);
 
-    return { message: 'OTP sent to email' };
+    return { message: 'OTP sent to email. Please verify to complete registration.' };
   }
 
-  async register(registerDto: RegisterDto) {
-    const existingUser = await this.usersService.findOneByEmail(registerDto.email);
-    if (existingUser) {
-      throw new BadRequestException('User with this email already exists');
+  // Step 2: User submits OTP → account is created
+  async verifyRegistration(dto: VerifyOtpDto) {
+    const cached = await this.cacheManager.get<{ otp: string; name: string; surname: string; email: string; password: string; phone: string }>(`register:${dto.email}`);
+    if (!cached) {
+      throw new BadRequestException('OTP expired or not found. Please register again.');
     }
 
-    const hashedPassword = await PasswordHasher.hashPassword(registerDto.password);
+    if (cached.otp !== dto.otp) {
+      throw new UnauthorizedException('OTP noto\'g\'ri');
+    }
+
+    const hashedPassword = await PasswordHasher.hashPassword(cached.password);
     const newUser = await this.usersService.createUser({
-      ...registerDto,
-      password: hashedPassword
+      name: cached.name,
+      surname: cached.surname,
+      email: cached.email,
+      phone: cached.phone,
+      password: hashedPassword,
     });
 
-    const token = this.generateToken(newUser);
+    await this.cacheManager.del(`register:${dto.email}`);
 
+    const token = this.generateToken(newUser);
     this.websocketGateway.server.emit('newUserRegistered', { user: newUser });
 
     return { message: 'Registration successful', user: newUser, token };
   }
 
+  // ===================== LOGIN FLOW =====================
+
+  // Login with email or phone + password (no OTP required)
   async userLogin(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
+    const { emailOrPhone, password } = loginDto;
+
+    // Determine if it's email or phone
+    const isEmail = emailOrPhone.includes('@');
+    let user: any;
+
+    if (isEmail) {
+      user = await this.usersService.findOneByEmail(emailOrPhone);
+    } else {
+      user = await this.usersService.findOneByPhone(emailOrPhone);
+    }
+
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Email/telefon yoki parol noto\'g\'ri');
+    }
+
+    const isPasswordValid = await PasswordHasher.comparePassword(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Email/telefon yoki parol noto\'g\'ri');
     }
 
     if (user.role !== Role.USER) {
       throw new UnauthorizedException('Unauthorized role access');
     }
 
-    const cached = await this.cacheManager.get<{ otp: string; phone: string }>(`otp:${loginDto.email}`);
-    if (!cached) {
-      throw new UnauthorizedException('OTP not found or expired. Please request a new OTP.');
-    }
+    const { password: _pw, ...userData } = user;
+    const token = this.generateToken(userData);
 
-    if (cached.otp !== loginDto.otp) {
-      throw new UnauthorizedException('Invalid OTP');
-    }
-
-    if (user.phone !== cached.phone) {
-      throw new UnauthorizedException('Phone number mismatch');
-    }
-
-    await this.cacheManager.del(`otp:${loginDto.email}`);
-
-    const token = this.generateToken(user);
-
-    this.websocketGateway.server.emit('userLoggedIn', { user });
+    this.websocketGateway.server.emit('userLoggedIn', { user: userData });
 
     return { message: 'Login successful', token };
   }
 
+  // Admin login (email + password, no OTP)
   async adminLogin(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
+    const { emailOrPhone, password } = loginDto;
+
+    const user = await this.usersService.findOneByEmail(emailOrPhone);
     if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const isPasswordValid = await PasswordHasher.comparePassword(password, user.password);
+    if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -109,8 +133,66 @@ export class AuthService {
       throw new UnauthorizedException('Unauthorized role access');
     }
 
-    const token = this.generateToken(user);
+    const { password: _pw, ...userData } = user;
+    const token = this.generateToken(userData);
 
     return { message: 'Login successful', token };
+  }
+
+  // ===================== FORGOT PASSWORD FLOW =====================
+
+  // Step 1: User submits email → OTP sent
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.usersService.findOneByEmail(dto.email);
+    if (!user) {
+      throw new NotFoundException('Bu email bilan foydalanuvchi topilmadi');
+    }
+
+    // TODO: replace '000000' with real OTP generation in production
+    const otp = '000000';
+
+    await this.cacheManager.set(`forgot:${dto.email}`, { otp }, 300000);
+
+    return { message: 'OTP sent to email' };
+  }
+
+  // Step 2: User submits OTP + new password → password updated
+  async resetPassword(dto: ResetPasswordDto) {
+    const cached = await this.cacheManager.get<{ otp: string }>(`forgot:${dto.email}`);
+    if (!cached) {
+      throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+    }
+
+    if (cached.otp !== dto.otp) {
+      throw new UnauthorizedException('OTP noto\'g\'ri');
+    }
+
+    const user = await this.usersService.findOneByEmail(dto.email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const hashedPassword = await PasswordHasher.hashPassword(dto.newPassword);
+    await this.usersService.updateUser(user.userId, { password: hashedPassword });
+
+    await this.cacheManager.del(`forgot:${dto.email}`);
+
+    return { message: 'Parol muvaffaqiyatli yangilandi' };
+  }
+
+  // ===================== SEND OTP (general) =====================
+
+  async sendOtp(dto: SendOtpDto) {
+    const user = await this.usersService.findOneByEmail(dto.email);
+    if (!user) {
+      throw new NotFoundException('Bu email bilan foydalanuvchi topilmadi');
+    }
+
+    // TODO: replace '000000' with real OTP generation in production
+    const otp = '000000';
+
+    await this.cacheManager.set(`otp:${dto.email}`, { otp, phone: user.phone }, 300000);
+
+    return { message: 'OTP sent to email' };
   }
 }

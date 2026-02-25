@@ -102,7 +102,7 @@ export class ZikrGroupService {
             user: { select: { userId: true, image_url: true, name: true, surname: true, phone: true } },
           },
         },
-        zikr: { select: { id: true, name: true, goal: true } },
+        zikr: { select: { id: true, name: true, desc: true, hint: true, body: true, goal: true } },
         zikrActivities: { select: { zikr_count: true } },
       },
     });
@@ -147,9 +147,13 @@ export class ZikrGroupService {
     return {
       id: group.idGroup,
       name: group.name,
+      kimga: group.kimga,
       isPublic: group.isPublic,
       admin: group.admin,
       zikrName: zikr?.name ?? null,
+      zikrBody: zikr?.body ?? null,
+      zikrDesc: zikr?.desc ?? null,
+      zikrHint: zikr?.hint ?? null,
       goalZikrCount: goal,
       currentZikrCount,
       cycleCount,
