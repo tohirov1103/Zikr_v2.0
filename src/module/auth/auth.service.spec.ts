@@ -8,6 +8,16 @@ import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn().mockReturnValue({
+    sendMail: jest.fn().mockResolvedValue({}),
+  }),
+}));
+
+jest.mock('otp-generator', () => ({
+  generate: jest.fn().mockReturnValue('123456'),
+}));
+
 const mockUser = {
   userId: 'user-uuid',
   email: 'test@example.com',

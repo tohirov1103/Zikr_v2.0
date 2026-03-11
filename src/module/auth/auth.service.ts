@@ -8,20 +8,61 @@ import { WebsocketGateway } from '../websocket/websocket.gateway';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
+import * as otpGenerator from 'otp-generator';
 
 @Injectable()
 export class AuthService {
+  private transporter: nodemailer.Transporter;
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly websocketGateway: WebsocketGateway,
     private readonly configService: ConfigService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-  ) {}
+  ) {
+    this.transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('mail.host'),
+      port: Number(this.configService.get<string>('mail.port')),
+      secure: false,
+      auth: {
+        user: this.configService.get<string>('mail.user'),
+        pass: this.configService.get<string>('mail.pass'),
+      },
+    });
+  }
 
   private generateToken(user: any) {
     const payload = { id: user.userId, role: user.role };
     return this.jwtService.sign(payload);
+  }
+
+  private generateOtp(): string {
+    return otpGenerator.generate(6, {
+      digits: true,
+      lowerCaseAlphabets: false,
+      upperCaseAlphabets: false,
+      specialChars: false,
+    });
+  }
+
+  private async sendOtpEmail(to: string, otp: string): Promise<void> {
+    await this.transporter.sendMail({
+      from: this.configService.get<string>('mail.user'),
+      to,
+      subject: 'Hatm App - Tasdiqlash kodi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2c3e50; text-align: center;">Hatm App</h2>
+          <p style="text-align: center; font-size: 16px;">Sizning tasdiqlash kodingiz:</p>
+          <div style="background: #f0f0f0; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2c3e50;">${otp}</span>
+          </div>
+          <p style="text-align: center; color: #888; font-size: 14px;">Kod 5 daqiqa ichida amal qiladi.</p>
+        </div>
+      `,
+    });
   }
 
   // ===================== REGISTER FLOW =====================
@@ -38,14 +79,15 @@ export class AuthService {
       throw new BadRequestException('Bu telefon raqam uchun allaqachon account mavjud');
     }
 
-    // TODO: replace '000000' with real OTP generation in production
-    const otp = '000000';
+    const otp = this.generateOtp();
 
     // Cache registration data + OTP for 5 minutes
     await this.cacheManager.set(`register:${registerDto.email}`, {
       otp,
       ...registerDto,
     }, 300000);
+
+    await this.sendOtpEmail(registerDto.email, otp);
 
     return { message: 'OTP sent to email. Please verify to complete registration.' };
   }
@@ -148,10 +190,11 @@ export class AuthService {
       throw new NotFoundException('Bu email bilan foydalanuvchi topilmadi');
     }
 
-    // TODO: replace '000000' with real OTP generation in production
-    const otp = '000000';
+    const otp = this.generateOtp();
 
     await this.cacheManager.set(`forgot:${dto.email}`, { otp }, 300000);
+
+    await this.sendOtpEmail(dto.email, otp);
 
     return { message: 'OTP sent to email' };
   }
@@ -188,10 +231,11 @@ export class AuthService {
       throw new NotFoundException('Bu email bilan foydalanuvchi topilmadi');
     }
 
-    // TODO: replace '000000' with real OTP generation in production
-    const otp = '000000';
+    const otp = this.generateOtp();
 
     await this.cacheManager.set(`otp:${dto.email}`, { otp, phone: user.phone }, 300000);
+
+    await this.sendOtpEmail(dto.email, otp);
 
     return { message: 'OTP sent to email' };
   }
